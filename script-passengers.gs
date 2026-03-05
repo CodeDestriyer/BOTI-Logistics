@@ -74,9 +74,10 @@ var COL = {
   NOTE: 16,         // Q — Примітка
   STATUS: 17,       // R — Статус (new/work/route/archived/refused/transferred/deleted)
   DATE_ARCHIVE: 18, // S — Дата архів
-  ARCHIVE_ID: 19    // T — ARCHIVE_ID (зв'язок з таблицею Архіви)
+  ARCHIVE_ID: 19,   // T — ARCHIVE_ID (зв'язок з таблицею Архіви)
+  COMPANY_ID: 20    // U — company_id (ключ компанії)
 };
-var TOTAL_COLS = 20;
+var TOTAL_COLS = 21;
 
 // Статуси для архівації
 var ARCHIVE_STATUSES = ['archived', 'refused', 'deleted', 'transferred'];
@@ -113,17 +114,18 @@ function doPost(e) {
     var data = JSON.parse(e.postData.contents);
     var action = data.action;
     var payload = data.payload || data;
+    var companyId = payload.companyId || data.companyId || '';
 
     switch (action) {
       // --- ЧИТАННЯ ---
       case 'getAll':
-        return respond(getAllPassengers());
+        return respond(getAllPassengers(companyId));
 
       case 'getUaEu':
-        return respond(getSheetPassengers(SHEET_UA_EU, 'ua-eu'));
+        return respond(getSheetPassengers(SHEET_UA_EU, 'ua-eu', companyId));
 
       case 'getEuUa':
-        return respond(getSheetPassengers(SHEET_EU_UA, 'eu-ua'));
+        return respond(getSheetPassengers(SHEET_EU_UA, 'eu-ua', companyId));
 
       case 'getStructure':
         return respond(getStructure());
@@ -242,9 +244,9 @@ function doGet(e) {
 // ============================================
 // getAll — Витягнути ВСІ пасажирів з обох аркушів
 // ============================================
-function getAllPassengers() {
-  var uaEu = getSheetPassengers(SHEET_UA_EU, 'ua-eu');
-  var euUa = getSheetPassengers(SHEET_EU_UA, 'eu-ua');
+function getAllPassengers(companyId) {
+  var uaEu = getSheetPassengers(SHEET_UA_EU, 'ua-eu', companyId);
+  var euUa = getSheetPassengers(SHEET_EU_UA, 'eu-ua', companyId);
 
   var allPassengers = [];
   if (uaEu.passengers) allPassengers = allPassengers.concat(uaEu.passengers);
@@ -265,7 +267,7 @@ function getAllPassengers() {
 // ============================================
 // getSheetPassengers — Читання одного аркуша
 // ============================================
-function getSheetPassengers(sheetName, direction) {
+function getSheetPassengers(sheetName, direction, companyId) {
   try {
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     var sheet = ss.getSheetByName(sheetName);
@@ -285,6 +287,12 @@ function getSheetPassengers(sheetName, direction) {
     for (var i = 0; i < data.length; i++) {
       var row = data[i];
       if (!row[COL.NAME] && !row[COL.PHONE]) continue;
+
+      // Фільтр по company_id
+      if (companyId) {
+        var rowCompanyId = String(row[COL.COMPANY_ID] || '').trim().toLowerCase();
+        if (rowCompanyId !== companyId.toLowerCase()) continue;
+      }
 
       var dateReg = formatDate(row[COL.DATE_REG]);
       var crmStatus = resolveStatus(row);
@@ -441,6 +449,7 @@ function addPassenger(payload) {
     newRow[COL.DATE_REG] = today;
     newRow[COL.NOTE] = payload.note || '';
     newRow[COL.STATUS] = 'new';
+    newRow[COL.COMPANY_ID] = payload.companyId || '';
 
     sheet.appendRow(newRow);
     var newRowNum = sheet.getLastRow();

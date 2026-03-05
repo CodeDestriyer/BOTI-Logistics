@@ -2293,7 +2293,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'getAll' })
+        body: JSON.stringify({ action: 'getAll', companyId: getCompanyId() })
     })
     .then(r => r.json())
     .then(data => {
@@ -2374,7 +2374,7 @@ function silentSync() {
     fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'getAll' })
+        body: JSON.stringify({ action: 'getAll', companyId: getCompanyId() })
     })
     .then(r => r.json())
     .then(data => {
@@ -6378,7 +6378,7 @@ function syncWithSheets() {
     fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'getAll' })
+        body: JSON.stringify({ action: 'getAll', companyId: getCompanyId() })
     })
     .then(r => r.json())
     .then(data => {
@@ -6456,9 +6456,11 @@ function savePassengerToServer(passenger) {
     
     const payload = {
         action: 'addPassenger',
+        companyId: getCompanyId(),
         payload: {
             direction: passenger.direction,
             initials: getUserInitials(),
+            companyId: getCompanyId(),
             date: passenger.date,
             from: passenger.from,
             to: passenger.to,
@@ -6575,9 +6577,11 @@ function movePassengerDirection(oldPassenger, newData) {
 
     const addPayload = {
         action: 'addPassenger',
+        companyId: getCompanyId(),
         payload: {
             direction: newData.direction,
             initials: getUserInitials(),
+            companyId: getCompanyId(),
             date: newData.date,
             from: newData.from,
             to: newData.to,
