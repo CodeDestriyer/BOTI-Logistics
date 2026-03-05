@@ -86,6 +86,20 @@ var HEADERS = [
 // Статуси для архівації
 var ARCHIVE_STATUSES = ['archived', 'refused', 'deleted', 'transferred'];
 
+// ============================================
+// Пошук колонки company_id по заголовку (1-й рядок)
+// Повертає індекс колонки або -1 якщо не знайдено
+// ============================================
+function findCompanyIdCol(sheet) {
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return -1;
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (var i = 0; i < headers.length; i++) {
+    if (String(headers[i]).trim().toLowerCase() === 'company_id') return i;
+  }
+  return -1;
+}
+
 // Маппінг полів API → індексів колонок
 var FIELD_MAP = {
   vo: COL.VO,
@@ -123,6 +137,7 @@ function doGet(e) {
   try {
     var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'health';
     var sheetParam = (e && e.parameter) ? (e.parameter.sheet || '') : '';
+    var companyIdParam = (e && e.parameter) ? (e.parameter.companyId || '') : '';
 
     switch (action) {
       case 'health':
@@ -136,10 +151,10 @@ function doGet(e) {
 
       case 'getDeliveries':
         if (!sheetParam) return respond({ success: false, error: 'Не вказано маршрут (sheet)' });
-        return respond(getDeliveries(sheetParam));
+        return respond(getDeliveries(sheetParam, companyIdParam));
 
       case 'getAvailableRoutes':
-        return respond(getAvailableRoutes());
+        return respond(getAvailableRoutes(companyIdParam));
 
       default:
         return respond({ success: false, error: 'Невідома GET дія: ' + action });
@@ -157,6 +172,8 @@ function doPost(e) {
     var data = JSON.parse(e.postData.contents);
     var action = data.action;
     var payload = data.payload || data;
+    // Прокидуємо companyId в payload (фронтенд шле його в data, не в payload)
+    payload.companyId = payload.companyId || data.companyId || '';
 
     switch (action) {
       // --- CRM: МАРШРУТИ ---
@@ -173,7 +190,7 @@ function doPost(e) {
         return respond(getRoutePackages(payload));
 
       case 'getAvailableRoutes':
-        return respond(getAvailableRoutes());
+        return respond(getAvailableRoutes(payload.companyId));
 
       case 'deleteRouteSheet':
         return respond(deleteRouteSheet(payload));
@@ -240,7 +257,7 @@ function doPost(e) {
 // ============================================
 // getDeliveries — Читання посилок для водіїв
 // ============================================
-function getDeliveries(sheetName) {
+function getDeliveries(sheetName, companyId) {
   try {
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     var sheet = ss.getSheetByName(sheetName);
@@ -254,7 +271,11 @@ function getDeliveries(sheetName) {
       return { success: true, deliveries: [], count: 0, sheetName: sheetName };
     }
 
-    var readCols = Math.min(sheet.getLastColumn(), TOTAL_COLS);
+    // Шукаємо колонку company_id по заголовку
+    var compIdCol = findCompanyIdCol(sheet);
+
+    var lastCol = sheet.getLastColumn();
+    var readCols = Math.max(lastCol, TOTAL_COLS);
     var data = sheet.getRange(2, 1, lastRow - 1, readCols).getValues();
     var deliveries = [];
 
@@ -262,6 +283,12 @@ function getDeliveries(sheetName) {
       var row = data[i];
       var internalNumber = str(row[COL.NUMBER]);
       if (!internalNumber && !str(row[COL.VO])) continue;
+
+      // Фільтр по company_id
+      if (companyId && compIdCol !== -1) {
+        var rowCompanyId = str(row[compIdCol]).toLowerCase();
+        if (rowCompanyId !== companyId.toLowerCase()) continue;
+      }
 
       // Пропускаємо архівовані
       var crmStatus = str(row[COL.STATUS]).toLowerCase();
@@ -344,7 +371,12 @@ function getRoutePackages(payload) {
       return { success: true, packages: [], passengers: [], count: 0, sheetName: sheetName, stats: { total: 0 } };
     }
 
-    var readCols = Math.min(sheet.getLastColumn(), TOTAL_COLS);
+    // Шукаємо колонку company_id по заголовку
+    var compIdCol = findCompanyIdCol(sheet);
+    var companyId = payload.companyId || '';
+
+    var lastCol = sheet.getLastColumn();
+    var readCols = Math.max(lastCol, TOTAL_COLS);
     var dataRange = sheet.getRange(2, 1, lastRow - 1, readCols);
     var data = dataRange.getValues();
     var backgrounds = dataRange.getBackgrounds();
@@ -353,6 +385,12 @@ function getRoutePackages(payload) {
     for (var i = 0; i < data.length; i++) {
       var row = data[i];
       if (!str(row[COL.NUMBER]) && !str(row[COL.VO])) continue;
+
+      // Фільтр по company_id
+      if (companyId && compIdCol !== -1) {
+        var rowCompanyId = str(row[compIdCol]).toLowerCase();
+        if (rowCompanyId !== companyId.toLowerCase()) continue;
+      }
 
       packages.push({
         rowNum: i + 2,
@@ -410,7 +448,7 @@ function getRoutePackages(payload) {
 // ============================================
 // getAvailableRoutes — Список маршрутних аркушів
 // ============================================
-function getAvailableRoutes() {
+function getAvailableRoutes(companyId) {
   try {
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     var sheets = ss.getSheets();
@@ -433,7 +471,22 @@ function getAvailableRoutes() {
       }
       if (isExcluded) continue;
 
-      var count = Math.max(0, sheets[i].getLastRow() - 1);
+      var lastRow = sheets[i].getLastRow();
+      if (lastRow < 2) continue;
+
+      // Фільтр по company_id — показуємо тільки маршрути де є рядки з цим company_id
+      var count = lastRow - 1;
+      if (companyId) {
+        var compIdCol = findCompanyIdCol(sheets[i]);
+        if (compIdCol === -1) continue; // Немає колонки company_id — не показуємо
+        var colData = sheets[i].getRange(2, compIdCol + 1, lastRow - 1, 1).getValues();
+        count = 0;
+        for (var r = 0; r < colData.length; r++) {
+          if (String(colData[r][0]).trim().toLowerCase() === companyId.toLowerCase()) count++;
+        }
+        if (count === 0) continue; // Немає рядків для цієї компанії
+      }
+
       routes.push({
         name: name,
         vehicle: name,

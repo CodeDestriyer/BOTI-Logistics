@@ -89,6 +89,20 @@ var HEADERS = [
 // Статуси для архівації
 var ARCHIVE_STATUSES = ['archived', 'refused', 'deleted', 'transferred'];
 
+// ============================================
+// Пошук колонки company_id по заголовку (1-й рядок)
+// Повертає індекс колонки або -1 якщо не знайдено
+// ============================================
+function findCompanyIdCol(sheet) {
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return -1;
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (var i = 0; i < headers.length; i++) {
+    if (String(headers[i]).trim().toLowerCase() === 'company_id') return i;
+  }
+  return -1;
+}
+
 // Службові аркуші — НЕ маршрути
 var EXCLUDE_SHEETS = ['Логи', 'Провірка розсилки'];
 
@@ -112,6 +126,7 @@ function doGet(e) {
   try {
     var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'health';
     var sheetParam = (e && e.parameter) ? (e.parameter.sheet || '') : '';
+    var companyIdParam = (e && e.parameter) ? (e.parameter.companyId || '') : '';
 
     switch (action) {
       case 'health':
@@ -125,10 +140,10 @@ function doGet(e) {
 
       case 'getPassengers':
         if (!sheetParam) return respond({ success: false, error: 'Не вказано маршрут (sheet)' });
-        return respond(getRoutePassengers({ sheetName: sheetParam }));
+        return respond(getRoutePassengers({ sheetName: sheetParam, companyId: companyIdParam }));
 
       case 'getAvailableRoutes':
-        return respond(getAvailableRoutes());
+        return respond(getAvailableRoutes(companyIdParam));
 
       default:
         return respond({ success: false, error: 'Невідома GET дія: ' + action });
@@ -146,6 +161,8 @@ function doPost(e) {
     var data = JSON.parse(e.postData.contents);
     var action = data.action;
     var payload = data.payload || data;
+    // Прокидуємо companyId в payload (фронтенд шле його в data, не в payload)
+    payload.companyId = payload.companyId || data.companyId || '';
 
     switch (action) {
       // --- ЧИТАННЯ ---
@@ -153,7 +170,7 @@ function doPost(e) {
         return respond(getRoutePassengers(payload));
 
       case 'getAvailableRoutes':
-        return respond(getAvailableRoutes());
+        return respond(getAvailableRoutes(payload.companyId));
 
       case 'checkRouteSheets':
         return respond(checkRouteSheets(payload));
@@ -263,7 +280,12 @@ function getRoutePassengers(payload) {
       return { success: true, passengers: [], count: 0, sheetName: sheetName, stats: { total: 0 } };
     }
 
-    var readCols = Math.min(sheet.getLastColumn(), TOTAL_COLS);
+    // Шукаємо колонку company_id по заголовку
+    var compIdCol = findCompanyIdCol(sheet);
+    var companyId = payload.companyId || '';
+
+    var lastCol = sheet.getLastColumn();
+    var readCols = Math.max(lastCol, TOTAL_COLS);
     var dataRange = sheet.getRange(2, 1, lastRow - 1, readCols);
     var data = dataRange.getValues();
     var backgrounds = dataRange.getBackgrounds();
@@ -272,6 +294,12 @@ function getRoutePassengers(payload) {
     for (var i = 0; i < data.length; i++) {
       var row = data[i];
       if (!str(row[COL.NAME]) && !str(row[COL.PHONE])) continue;
+
+      // Фільтр по company_id
+      if (companyId && compIdCol !== -1) {
+        var rowCompanyId = str(row[compIdCol]).toLowerCase();
+        if (rowCompanyId !== companyId.toLowerCase()) continue;
+      }
 
       // Статус водія (з Відмітка + колір рядка)
       var driverStatus = resolveDriverStatus(row, backgrounds[i]);
@@ -336,7 +364,7 @@ function getRoutePassengers(payload) {
 // ============================================
 // getAvailableRoutes — Список маршрутних аркушів
 // ============================================
-function getAvailableRoutes() {
+function getAvailableRoutes(companyId) {
   try {
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     var sheets = ss.getSheets();
@@ -352,7 +380,22 @@ function getAvailableRoutes() {
       }
       if (isExcluded) continue;
 
-      var count = Math.max(0, sheets[i].getLastRow() - 1);
+      var lastRow = sheets[i].getLastRow();
+      if (lastRow < 2) continue;
+
+      // Фільтр по company_id — показуємо тільки маршрути де є рядки з цим company_id
+      var count = lastRow - 1;
+      if (companyId) {
+        var compIdCol = findCompanyIdCol(sheets[i]);
+        if (compIdCol === -1) continue; // Немає колонки company_id — не показуємо
+        var colData = sheets[i].getRange(2, compIdCol + 1, lastRow - 1, 1).getValues();
+        count = 0;
+        for (var r = 0; r < colData.length; r++) {
+          if (String(colData[r][0]).trim().toLowerCase() === companyId.toLowerCase()) count++;
+        }
+        if (count === 0) continue; // Немає рядків для цієї компанії
+      }
+
       routes.push({
         name: name,
         type: 'passenger',
