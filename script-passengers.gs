@@ -1,7 +1,7 @@
 // ============================================
 // ЮРА ТРАНСПОРТЕЙШН — CRM ПАСАЖИРИ v1.0
 // Apps Script API для таблиці "Бот ПАСАЖИРИ"
-// ID: 1U1deQJvMPZ9fctIEoHCXr8cFQmgWLVe2VRhlzb5IpjI
+// ID: 1SvWAVYNKkWl7Sx_wWhTWPlDyKU9hIQCQzcWBTUGG2i8
 // ============================================
 //
 // ІНСТРУКЦІЯ:
@@ -18,7 +18,7 @@
 // КОНФІГУРАЦІЯ
 // ============================================
 
-var SPREADSHEET_ID = '1U1deQJvMPZ9fctIEoHCXr8cFQmgWLVe2VRhlzb5IpjI';
+var SPREADSHEET_ID = '1SvWAVYNKkWl7Sx_wWhTWPlDyKU9hIQCQzcWBTUGG2i8';
 
 // Таблиця маршрутів пасажирів
 var ROUTE_SPREADSHEET_ID = '1fYO1ClIP26S4xYgcsT_0LVCWVrqkAL5MkehXvL-Yni0';

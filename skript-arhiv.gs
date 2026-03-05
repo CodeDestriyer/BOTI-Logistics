@@ -65,7 +65,7 @@ var SOURCES = {
     idCol: 13           // N — ІД
   },
   BOT_PASAZHYRY: {
-    id: '1U1deQJvMPZ9fctIEoHCXr8cFQmgWLVe2VRhlzb5IpjI',
+    id: '1SvWAVYNKkWl7Sx_wWhTWPlDyKU9hIQCQzcWBTUGG2i8',
     name: 'Бот Пасажири',
     type: 'pasazhyry',
     sheets: ['Україна-єв', 'Європа-ук', 'РОБОЧИЙ'],

@@ -2265,8 +2265,26 @@ let calendarDate = new Date(); // Поточна дата
 let draggedId = null;
 let undoHistory = []; // Історія для відміни дій
 
+// ═══ СЕСІЯ ═══
+var botiSession = null;
+function checkSession() {
+    try {
+        var raw = sessionStorage.getItem('boti_auth');
+        if (raw) botiSession = JSON.parse(raw);
+    } catch(e) {}
+    if (!botiSession || !botiSession.role) {
+        window.location.href = 'Login.html';
+        return false;
+    }
+    return true;
+}
+function getCompanyId() {
+    return botiSession ? botiSession.companyId : '';
+}
+
 // INIT
 document.addEventListener('DOMContentLoaded', () => {
+    if (!checkSession()) return;
     loadSettings();
     renderCalendars();
 
