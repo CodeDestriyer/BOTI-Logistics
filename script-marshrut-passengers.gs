@@ -245,6 +245,10 @@ function doPost(e) {
       case 'clearOldMailing':
         return respond(clearOldMailing(payload));
 
+      // --- СТВОРЕННЯ ---
+      case 'addPassenger':
+        return respond(addPassengerToRoute(payload));
+
       // --- ДЕБАГ ---
       case 'getStructure':
         return respond(getStructure());
@@ -1400,6 +1404,67 @@ function sendToArchive(payload) {
     return { success: false, error: 'HTTP ' + response.getResponseCode() };
   } catch (e) {
     return { success: false, error: 'Архів недоступний: ' + e.toString() };
+  }
+}
+
+// ============================================
+// addPassengerToRoute — Додати пасажира з Drivers UI
+// ============================================
+function addPassengerToRoute(payload) {
+  try {
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheetName = payload.vehicle || payload.sheetName;
+    if (!sheetName) {
+      return { success: false, error: 'Не вказано маршрут (vehicle/sheetName)' };
+    }
+
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      return { success: false, error: 'Аркуш не знайдено: ' + sheetName };
+    }
+
+    var today = Utilities.formatDate(new Date(), 'Europe/Kiev', 'yyyy-MM-dd');
+    var newId = 'drv_' + new Date().getTime();
+
+    var newRow = new Array(TOTAL_COLS);
+    for (var i = 0; i < TOTAL_COLS; i++) newRow[i] = '';
+
+    newRow[COL.DATE] = payload.date || '';
+    newRow[COL.FROM] = payload.from || '';
+    newRow[COL.TO] = payload.to || '';
+    newRow[COL.SEATS] = payload.seats || 1;
+    newRow[COL.NAME] = payload.name || '';
+    newRow[COL.PHONE] = payload.phone || '';
+    newRow[COL.DISPATCHER] = 'Driver';
+    newRow[COL.ID] = newId;
+    newRow[COL.VEHICLE] = sheetName;
+    newRow[COL.DATE_REG] = today;
+    newRow[COL.NOTE] = payload.note || '';
+    newRow[COL.STATUS] = 'new';
+
+    sheet.appendRow(newRow);
+    var newRowNum = sheet.getLastRow();
+
+    // Записуємо company_id якщо колонка є
+    var companyId = payload.companyId || '';
+    if (companyId) {
+      var compCol = findCompanyIdCol(sheet);
+      if (compCol >= 0) {
+        sheet.getRange(newRowNum, compCol + 1).setValue(companyId);
+      }
+    }
+
+    writeLog('addPassenger', sheetName, newRowNum, 'new',
+      'ПіБ: ' + (payload.name || '') + ' | Тел: ' + (payload.phone || '') + ' | Driver UI');
+
+    return {
+      success: true,
+      sheet: sheetName,
+      rowNum: newRowNum,
+      id: newId
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
   }
 }
 

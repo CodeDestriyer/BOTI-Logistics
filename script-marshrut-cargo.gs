@@ -242,6 +242,10 @@ function doPost(e) {
       case 'clearOldMailing':
         return respond(clearOldMailing(payload));
 
+      // --- СТВОРЕННЯ ---
+      case 'addPackage':
+        return respond(addPackageToRoute(data));
+
       // --- ДЕБАГ ---
       case 'getStructure':
         return respond(getStructure());
@@ -1472,6 +1476,66 @@ function sendToArchive(payload) {
   } catch (e) {
     Logger.log('Archive API error: ' + e.toString());
     return { success: false, error: 'Архів недоступний: ' + e.toString() };
+  }
+}
+
+// ============================================
+// addPackageToRoute — Додати посилку з Drivers UI
+// ============================================
+function addPackageToRoute(data) {
+  try {
+    var fields = data.fields || {};
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheetName = data.sheet || fields.vehicle;
+    if (!sheetName) {
+      return { success: false, error: 'Не вказано маршрут (sheet/vehicle)' };
+    }
+
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      return { success: false, error: 'Аркуш не знайдено: ' + sheetName };
+    }
+
+    var today = Utilities.formatDate(new Date(), 'Europe/Kiev', 'yyyy-MM-dd');
+    var newId = 'drv_' + new Date().getTime();
+
+    var newRow = new Array(TOTAL_COLS);
+    for (var i = 0; i < TOTAL_COLS; i++) newRow[i] = '';
+
+    // Маппінг полів через FIELD_MAP
+    for (var field in fields) {
+      if (fields.hasOwnProperty(field) && FIELD_MAP.hasOwnProperty(field)) {
+        newRow[FIELD_MAP[field]] = fields[field];
+      }
+    }
+
+    if (!newRow[COL.DATE_REG]) newRow[COL.DATE_REG] = today;
+    if (!newRow[COL.ID]) newRow[COL.ID] = newId;
+    if (!newRow[COL.STATUS]) newRow[COL.STATUS] = 'new';
+
+    sheet.appendRow(newRow);
+    var newRowNum = sheet.getLastRow();
+
+    // Записуємо company_id якщо колонка є
+    var companyId = data.companyId || '';
+    if (companyId) {
+      var compCol = findCompanyIdCol(sheet);
+      if (compCol >= 0) {
+        sheet.getRange(newRowNum, compCol + 1).setValue(companyId);
+      }
+    }
+
+    writeLog('addPackage', sheetName, newRowNum, 'new',
+      'ПіБ: ' + (fields.name || '') + ' | ТТН: ' + (fields.ttn || '') + ' | Тел: ' + (fields.phone || '') + ' | Driver UI');
+
+    return {
+      success: true,
+      sheet: sheetName,
+      rowNum: newRowNum,
+      id: newId
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
   }
 }
 
