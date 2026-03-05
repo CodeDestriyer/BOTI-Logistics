@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>YuraCRM Admin Пасажири v17</title>
+    <title>BOTI Logistics — CRM Пасажири</title>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -1498,7 +1498,7 @@
 <header class="header">
     <div class="header-top">
         <button class="burger-btn" onclick="openSideMenu()">☰</button>
-        <div class="logo">YURA<span>TRANSPORTATION</span></div>
+        <div class="logo"><span style="color:#4CAF50">BOTI</span><span> LOGISTICS</span></div>
         <div class="search-box">
             <span class="search-icon">🔍</span>
             <input type="text" class="search-input" id="searchInput" placeholder="Пошук..." oninput="handleSearch()">
@@ -1906,7 +1906,7 @@
         <span>👥</span>
         <span id="navPassengersLabel">Пасажири</span>
     </button>
-    <button class="nav-item" onclick="window.location.href='index_posylki.html'"><span>📦</span>Посилки</button>
+    <button class="nav-item" onclick="window.location.href='Cargo.html'"><span>📦</span>Посилки</button>
     <button class="nav-item" onclick="syncWithSheets()"><span>🔄</span>Синхр.</button>
     <button class="nav-item" onclick="openColumnsModal()"><span>⚙️</span>Колонки</button>
     <button class="nav-item" onclick="openAddModal()"><span>➕</span>Додати</button>
@@ -6343,7 +6343,7 @@ function openMapLocation(type) {
 // GOOGLE SHEETS API
 // ============================================
 // Пасажири (основна таблиця даних)
-const API_URL = 'https://script.google.com/macros/s/AKfycbx2R5XM8jXHwsSlhkseJr3a4PdbGHuDYvlm-2gmhNdAcSZQxMpOuhD2MZIV8IcpGeqnng/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbw1gPO3mpGK4uAxnqWbnGok_2OUzpYf8HrHGQ7SmS2pZtuE6dyi3z_oOCX8jssf8_ZWhg/exec';
 
 // Маршрути пасажирів (окремий скрипт)
 const ROUTE_API_URL = 'https://script.google.com/macros/s/AKfycbwd_jczf4mQRkYJgFUG2IhVGkZF-LQ9pmVEFew9gMNn2ziiKsrC3McQ4h5rfaP_FyS9/exec';
