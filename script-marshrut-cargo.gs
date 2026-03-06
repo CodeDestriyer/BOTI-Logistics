@@ -246,6 +246,14 @@ function doPost(e) {
       case 'addPackage':
         return respond(addPackageToRoute(data));
 
+      // --- ВІДПРАВКА (DISPATCH) ---
+      case 'getDispatchItems':
+        return respond(getDispatchItems(payload));
+      case 'addDispatchItem':
+        return respond(addDispatchItem(payload));
+      case 'updateDispatchStatus':
+        return respond(updateDispatchStatus(data));
+
       // --- ДЕБАГ ---
       case 'getStructure':
         return respond(getStructure());
@@ -459,7 +467,7 @@ function getAvailableRoutes(companyId) {
     var routes = [];
 
     // Службові аркуші які НЕ є маршрутами
-    var excludePatterns = ['логи', 'logs', 'водіїв', 'розсилк', 'провірка', 'перевірка', 'template', 'шаблон', 'тест', 'test', 'архів', 'маршрути'];
+    var excludePatterns = ['логи', 'logs', 'водіїв', 'розсилк', 'провірка', 'перевірка', 'template', 'шаблон', 'тест', 'test', 'архів', 'маршрути', 'відпр'];
 
     for (var i = 0; i < sheets.length; i++) {
       var name = sheets[i].getName();
@@ -1626,4 +1634,162 @@ function menuTestArchive() {
     result.success ? 'OK — зв\'язок працює' : 'ПОМИЛКА: ' + result.error,
     SpreadsheetApp.getUi().ButtonSet.OK
   );
+}
+
+// ============================================
+// ВІДПРАВКА (DISPATCH) — аркуші "(відпр)"
+// Колонки: A:ПІБ  B:№ посилки  C:Місто/Нова Пошта
+//          D:Опис/фото  E:Вага  F:Сума  G:Тип оплати
+//          H:Валюта  I:Конверт  J:ID/Телефон відправника
+//          K:company_id
+// ============================================
+
+var DCOL = {
+  NAME: 0,          // A — ПІБ
+  PARCEL_NUM: 1,    // B — № посилки
+  CITY: 2,          // C — Місто/Нова Пошта
+  DESCRIPTION: 3,   // D — Опис/фото
+  WEIGHT: 4,        // E — Вага
+  AMOUNT: 5,        // F — Сума
+  PAYMENT_TYPE: 6,  // G — Тип оплати
+  CURRENCY: 7,      // H — Валюта
+  ENVELOPE: 8,      // I — Конверт
+  SENDER_PHONE: 9,  // J — ID/Телефон відправника
+  COMPANY_ID: 10    // K — company_id
+};
+var DISPATCH_TOTAL_COLS = 11;
+
+// ============================================
+// getDispatchItems — Читання відправок з аркуша "(відпр)"
+// ============================================
+function getDispatchItems(payload) {
+  try {
+    var sheetName = payload.sheetName || '';
+    if (!sheetName) {
+      return { success: false, error: 'Не вказано аркуш відправки' };
+    }
+
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      return { success: false, error: 'Аркуш не знайдено: ' + sheetName };
+    }
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return { success: true, items: [], count: 0, sheetName: sheetName };
+    }
+
+    var lastCol = sheet.getLastColumn();
+    var numCols = Math.max(lastCol, DISPATCH_TOTAL_COLS);
+    var range = sheet.getRange(2, 1, lastRow - 1, numCols);
+    var data = range.getValues();
+
+    var companyId = payload.companyId || '';
+    var items = [];
+
+    for (var i = 0; i < data.length; i++) {
+      var row = data[i];
+      // Пропускаємо порожні рядки
+      if (!row[DCOL.NAME] && !row[DCOL.PARCEL_NUM] && !row[DCOL.SENDER_PHONE]) continue;
+
+      // Фільтр по company_id
+      if (companyId && row[DCOL.COMPANY_ID] && String(row[DCOL.COMPANY_ID]).trim() !== companyId) continue;
+
+      items.push({
+        rowNum: i + 2,
+        name: String(row[DCOL.NAME] || '').trim(),
+        parcelNum: String(row[DCOL.PARCEL_NUM] || '').trim(),
+        city: String(row[DCOL.CITY] || '').trim(),
+        description: String(row[DCOL.DESCRIPTION] || '').trim(),
+        weight: String(row[DCOL.WEIGHT] || '').trim(),
+        amount: String(row[DCOL.AMOUNT] || '').trim(),
+        paymentType: String(row[DCOL.PAYMENT_TYPE] || '').trim(),
+        currency: String(row[DCOL.CURRENCY] || '').trim(),
+        envelope: String(row[DCOL.ENVELOPE] || '').trim(),
+        senderPhone: String(row[DCOL.SENDER_PHONE] || '').trim(),
+        driverStatus: 'pending'
+      });
+    }
+
+    return {
+      success: true,
+      items: items,
+      count: items.length,
+      sheetName: sheetName
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ============================================
+// addDispatchItem — Додавання відправки в аркуш "(відпр)"
+// ============================================
+function addDispatchItem(payload) {
+  try {
+    var sheetName = payload.sheetName || '';
+    if (!sheetName) {
+      return { success: false, error: 'Не вказано аркуш відправки' };
+    }
+
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      return { success: false, error: 'Аркуш не знайдено: ' + sheetName };
+    }
+
+    var newRow = new Array(DISPATCH_TOTAL_COLS);
+    for (var i = 0; i < DISPATCH_TOTAL_COLS; i++) newRow[i] = '';
+
+    newRow[DCOL.NAME] = payload.name || '';
+    newRow[DCOL.PARCEL_NUM] = payload.parcelNum || '';
+    newRow[DCOL.CITY] = payload.city || '';
+    newRow[DCOL.DESCRIPTION] = payload.description || '';
+    newRow[DCOL.WEIGHT] = payload.weight || '';
+    newRow[DCOL.AMOUNT] = payload.amount || '';
+    newRow[DCOL.PAYMENT_TYPE] = payload.paymentType || '';
+    newRow[DCOL.CURRENCY] = payload.currency || '';
+    newRow[DCOL.ENVELOPE] = payload.envelope || '';
+    newRow[DCOL.SENDER_PHONE] = payload.senderPhone || '';
+    newRow[DCOL.COMPANY_ID] = payload.companyId || '';
+
+    sheet.appendRow(newRow);
+    var newRowNum = sheet.getLastRow();
+
+    writeLog('addDispatchItem', sheetName, newRowNum, 'new',
+      'ПІБ: ' + (payload.name || '') + ' | Тел: ' + (payload.senderPhone || '') + ' | Driver UI');
+
+    return {
+      success: true,
+      sheet: sheetName,
+      rowNum: newRowNum
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ============================================
+// updateDispatchStatus — Оновлення статусу відправки водієм
+// ============================================
+function updateDispatchStatus(data) {
+  try {
+    var sheetName = data.sheetName || '';
+    var rowNum = data.rowNum || 0;
+    var status = data.status || 'pending';
+
+    if (!sheetName || !rowNum) {
+      return { success: false, error: 'Не вказано аркуш або рядок' };
+    }
+
+    // Для відпр аркушів статус зберігається лише в логах
+    // (відпр аркуші не мають колонки статусу)
+    writeLog('updateDispatchStatus', sheetName, rowNum, status,
+      'Driver: ' + (data.driverId || '') + ' | Reason: ' + (data.cancelReason || ''));
+
+    return { success: true, rowNum: rowNum, status: status };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 }

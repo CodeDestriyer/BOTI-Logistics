@@ -750,6 +750,10 @@
                     <span class="filter-label">&#10060; СКАС.</span>
                     <span class="filter-count" id="countCancelled">0</span>
                 </button>
+                <button class="filter-btn" id="filterDispatch" onclick="filterByStatus('dispatch')" style="display:none;">
+                    <span class="filter-label">&#128230; ВІДПРАВКА</span>
+                    <span class="filter-count" id="countDispatch">0</span>
+                </button>
             </div>
         </div>
         <div class="deliveries-container" id="deliveriesList">
@@ -771,10 +775,10 @@
             ARCHIVE_API_URL: 'https://script.google.com/macros/s/AKfycbwJLGZgYT333VdMW-nM5kPjYs2WIGGjfqkZnDJYjJxUt8nzE8GDGCPm7EzMHhcxNDOn/exec',
             GOOGLE_MAPS_KEY: 'AIzaSyDbSS6XSCJ3MafbrSp-rIX1-x130bwzevo',
             DELIVERY_ROUTES: [
-                { name: 'Братислава марш.' },
-                { name: 'Нітра марш.' },
-                { name: 'Словаччина марш.' },
-                { name: 'Кошице+прешов марш.' }
+                { name: 'Маршрут 1' },
+                { name: 'Маршрут 2' },
+                { name: 'Маршрут 3' },
+                { name: 'Маршрут 4' }
             ]
         };
         let currentSheet = '';
@@ -786,6 +790,8 @@
         let currentFilter = 'all';
         let lastUpdateTime = 0;
         let isFirstLoad = true;
+        let dispatchData = [];
+        let dispatchLastUpdate = 0;
         function escapeHtml(str) {
             if (!str) return '';
             return String(str)
@@ -910,6 +916,8 @@
             var list = document.getElementById('deliveriesList');
             list.innerHTML = '<div class="loading"><div class="spinner"></div><p>Завантаження...</p></div>';
             deliveries = [];
+            dispatchData = [];
+            dispatchLastUpdate = 0;
             currentSheet = route;
             currentRouteType = routeType;
             deliveryStatuses = {};
@@ -920,6 +928,8 @@
             loadStatuses();
             document.querySelectorAll('.filter-btn').forEach(function(btn) { btn.classList.remove('active'); });
             document.getElementById('filterAll').classList.add('active');
+            var dispBtn = document.getElementById('filterDispatch');
+            if (dispBtn) dispBtn.style.display = (routeType === 'delivery') ? '' : 'none';
             var headerIcon = document.getElementById('listHeaderIcon');
             headerIcon.innerHTML = routeType === 'passenger' ? '&#128101; Пасажири' : '&#128230; Посилки';
             showScreen('listScreen');
@@ -1093,14 +1103,159 @@
             else if (status === 'in-progress') document.getElementById('filterProgress').classList.add('active');
             else if (status === 'completed') document.getElementById('filterCompleted').classList.add('active');
             else if (status === 'cancelled') document.getElementById('filterCancelled').classList.add('active');
-            renderDeliveries();
+            else if (status === 'dispatch') document.getElementById('filterDispatch').classList.add('active');
+            if (status === 'dispatch') {
+                loadDispatchData();
+            } else {
+                renderDeliveries();
+            }
         }
         function renderDeliveries() {
+            if (currentFilter === 'dispatch') {
+                renderDispatchCards();
+                return;
+            }
             if (currentRouteType === 'delivery') {
                 renderDeliveryCards();
             } else {
                 renderPassengerCards();
             }
+        }
+        // ============ ВІДПРАВКА (DISPATCH) ============
+        function getDispatchSheetName() {
+            return currentSheet + ' (відпр)';
+        }
+        async function loadDispatchData() {
+            var now = Date.now();
+            if (dispatchData.length > 0 && (now - dispatchLastUpdate) < 30000) {
+                renderDispatchCards();
+                return;
+            }
+            await fetchDispatchData();
+        }
+        async function fetchDispatchData() {
+            var list = document.getElementById('deliveriesList');
+            list.innerHTML = '<div class="loading"><div class="spinner"></div><p>Завантаження відправок...</p></div>';
+            try {
+                var response = await fetch(CONFIG.DELIVERY_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
+                        action: 'getDispatchItems',
+                        companyId: getCompanyId(),
+                        payload: { sheetName: getDispatchSheetName() }
+                    })
+                });
+                var data = await response.json();
+                if (!data.success) {
+                    list.innerHTML = '<div class="loading">&#10060; ' + escapeHtml(data.error || 'Помилка') + '</div>';
+                    return;
+                }
+                var items = data.items || [];
+                if (items.length === 0) {
+                    list.innerHTML = '<div class="loading">&#128230; Відправок не знайдено</div>';
+                    document.getElementById('countDispatch').textContent = '0';
+                    return;
+                }
+                dispatchData = items;
+                dispatchData.forEach(function(item, idx) {
+                    item._statusKey = 'disp_' + item.rowNum + '_' + idx;
+                    if (item.driverStatus && item.driverStatus !== 'pending') {
+                        deliveryStatuses[item._statusKey] = item.driverStatus;
+                    }
+                });
+                saveStatuses();
+                dispatchLastUpdate = Date.now();
+                renderDispatchCards();
+                document.getElementById('countDispatch').textContent = dispatchData.length;
+                showToast('Завантажено ' + dispatchData.length + ' відправок');
+            } catch (err) {
+                list.innerHTML = '<div class="loading">&#10060; ' + escapeHtml(err.message) + '</div>';
+            }
+        }
+        function renderDispatchCards() {
+            var list = document.getElementById('deliveriesList');
+            list.innerHTML = '';
+            if (dispatchData.length === 0) {
+                list.innerHTML = '<div class="loading">&#128230; Відправок не знайдено</div>';
+                return;
+            }
+            dispatchData.forEach(function(item, index) {
+                var uid = 'disp_' + index;
+                var status = deliveryStatuses[item._statusKey] || 'pending';
+                var statusIcon = status === 'completed' ? '&#9989;' : status === 'cancelled' ? '&#10060;' : status === 'in-progress' ? '&#128260;' : '&#9203;';
+                var canUndo = status === 'completed' || status === 'cancelled';
+                var safeName = escapeHtml(item.name || '');
+                var safeParcel = escapeHtml(item.parcelNum || '');
+                var safeCity = escapeHtml(item.city || '');
+                var safePhone = escapeHtml(item.senderPhone || '');
+                var safeStatusKey = escapeHtml(item._statusKey);
+                var card = document.createElement('div');
+                card.className = 'delivery-card status-' + status;
+                card.innerHTML = '<div class="card-row">' +
+                    '<div class="delivery-number">' + (index + 1) + '</div>' +
+                    '<div class="card-main-info">' +
+                        '<div class="card-address">' + safeName + '</div>' +
+                        (safeCity ? '<div style="font-size:11px;color:#666;margin-top:2px;">&#128205; ' + safeCity + '</div>' : '') +
+                    '</div>' +
+                    '<span style="font-size:16px;font-weight:bold;">' + statusIcon + '</span>' +
+                '</div>' +
+                '<div class="card-details-line">' +
+                    (safeParcel ? '<span class="detail-badge">&#128230; №' + safeParcel + '</span>' : '') +
+                    (item.weight ? '<span class="detail-badge">&#9878; ' + escapeHtml(item.weight) + ' кг</span>' : '') +
+                    (item.amount ? '<span class="detail-badge" style="font-weight:800;color:#2E7D32;">&#128176; ' + escapeHtml(item.amount) + ' ' + escapeHtml(item.currency || '') + '</span>' : '') +
+                '</div>' +
+                '<div class="card-details-line">' +
+                    (safePhone ? '<span class="card-phone" style="font-weight:700;">&#128222; <strong>' + safePhone + '</strong></span>' : '') +
+                    (item.paymentType ? '<span class="detail-badge">&#128179; ' + escapeHtml(item.paymentType) + '</span>' : '') +
+                '</div>' +
+                (safePhone ? '<div class="card-buttons"><button class="btn-small-card" onclick="callNumber(\'' + safePhone + '\')">&#9742; Дзвонити</button></div>' : '') +
+                '<div class="card-buttons" style="grid-template-columns:1fr;margin-top:5px;">' +
+                    '<button class="btn-small-card" onclick="toggleExpand(\'' + uid + '\')">&#128194; Деталі</button>' +
+                '</div>' +
+                '<div class="status-buttons-card">' +
+                    '<button class="status-btn-card status-in-progress-btn" onclick="setDispatchStatus(\'' + safeStatusKey + '\',\'in-progress\')">&#128260;</button>' +
+                    '<button class="status-btn-card status-completed-btn" onclick="setDispatchStatus(\'' + safeStatusKey + '\',\'completed\')">&#9989;</button>' +
+                    '<button class="status-btn-card status-cancelled-btn" onclick="setDispatchStatus(\'' + safeStatusKey + '\',\'cancelled\')">&#10060;</button>' +
+                    '<button class="status-btn-card status-undo-btn" onclick="setDispatchStatus(\'' + safeStatusKey + '\',\'pending\')" ' + (canUndo ? '' : 'disabled') + '>&#8617;</button>' +
+                '</div>' +
+                '<div class="card-expandable" id="expand-' + uid + '">' +
+                    renderExpandedInfoDispatch(item) +
+                '</div>';
+                list.appendChild(card);
+            });
+        }
+        function renderExpandedInfoDispatch(item) {
+            return '<div class="detail-section"><div class="detail-label">&#128100; ПІБ</div><div class="detail-value">' + escapeHtml(item.name || 'N/A') + '</div></div>' +
+                '<div class="detail-section"><div class="detail-label">&#128230; № посилки</div><div class="detail-value">' + escapeHtml(item.parcelNum || 'N/A') + '</div></div>' +
+                '<div class="detail-section"><div class="detail-label">&#128205; Місто/НП</div><div class="detail-value">' + escapeHtml(item.city || 'N/A') + '</div></div>' +
+                '<div class="detail-section"><div class="detail-label">&#128247; Опис/фото</div><div class="detail-value">' + escapeHtml(item.description || 'N/A') + '</div></div>' +
+                '<div class="detail-section"><div class="detail-label">&#9878; Вага</div><div class="detail-value">' + escapeHtml(item.weight || 'N/A') + '</div></div>' +
+                '<div class="detail-section"><div class="detail-label">&#128176; Сума</div><div class="detail-value">' + escapeHtml(item.amount || 'N/A') + ' ' + escapeHtml(item.currency || '') + '</div></div>' +
+                '<div class="detail-section"><div class="detail-label">&#128179; Тип оплати</div><div class="detail-value">' + escapeHtml(item.paymentType || 'N/A') + '</div></div>' +
+                '<div class="detail-section"><div class="detail-label">&#128176; Валюта</div><div class="detail-value">' + escapeHtml(item.currency || 'N/A') + '</div></div>' +
+                '<div class="detail-section"><div class="detail-label">&#128188; Конверт</div><div class="detail-value">' + escapeHtml(item.envelope || 'N/A') + '</div></div>' +
+                '<div class="detail-section"><div class="detail-label">&#128222; Відправник</div><div class="detail-value">' + escapeHtml(item.senderPhone || 'N/A') + '</div></div>';
+        }
+        function setDispatchStatus(statusKey, status) {
+            deliveryStatuses[statusKey] = status;
+            saveStatuses();
+            renderDispatchCards();
+            var item = dispatchData.find(function(d) { return d._statusKey === statusKey; });
+            if (!item) return;
+            fetch(CONFIG.DELIVERY_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({
+                    action: 'updateDispatchStatus',
+                    companyId: getCompanyId(),
+                    driverId: driverName,
+                    sheetName: getDispatchSheetName(),
+                    rowNum: item.rowNum,
+                    status: status,
+                    cancelReason: ''
+                })
+            }).catch(function(e) { console.error('Dispatch status error:', e); });
         }
         function renderDeliveryCards() {
             var list = document.getElementById('deliveriesList');
@@ -1697,15 +1852,18 @@
                 document.body.appendChild(overlay);
             }
             var isDelivery = currentRouteType === 'delivery';
-            var html = '<div class="add-lead-box"><div class="add-lead-title">&#10133; Додати ' + (isDelivery ? 'посилку' : 'пасажира') + '</div>';
+            var html = '<div class="add-lead-box"><div class="add-lead-title">&#10133; Додати ' + (isDelivery ? 'відправку' : 'пасажира') + '</div>';
             if (isDelivery) {
-                html += mkField('Телефон', 'addPhone', 'tel', '+380...') +
-                    mkField('Адреса', 'addAddress', 'text', 'Адреса доставки') +
-                    mkField('ПІБ', 'addName', 'text', "Ім'я отримувача") +
-                    mkField('ТТН', 'addTtn', 'text', 'Номер ТТН') +
-                    mkField('Вага (кг)', 'addWeight', 'text', '0') +
-                    mkField('Сума (€)', 'addAmount', 'text', '0') +
-                    mkField('Примітка', 'addNote', 'text', '');
+                html += mkField('ПІБ', 'addName', 'text', "Ім'я відправника") +
+                    mkField('№ посилки', 'addParcelNum', 'text', 'Номер посилки') +
+                    mkField('Місто/Нова Пошта', 'addCity', 'text', 'Місто або відділення НП') +
+                    mkField('Опис/фото', 'addDescription', 'text', 'Опис вмісту') +
+                    mkField('Вага (кг)', 'addWeight', 'text', '') +
+                    mkField('Сума', 'addAmount', 'text', '') +
+                    mkField('Тип оплати', 'addPaymentType', 'text', 'Готівка / Карта / ...') +
+                    mkField('Валюта', 'addCurrency', 'text', 'EUR / UAH / ...') +
+                    mkField('Конверт', 'addEnvelope', 'text', '') +
+                    mkField('ID/Телефон відправника', 'addSenderPhone', 'tel', '+380...');
             } else {
                 html += mkField("Ім'я", 'addName', 'text', "Ім'я пасажира") +
                     mkField('Телефон', 'addPhone', 'tel', '+380...') +
@@ -1732,22 +1890,24 @@
             var isDelivery = currentRouteType === 'delivery';
             var body;
             if (isDelivery) {
-                var phone = document.getElementById('addPhone').value.trim();
-                var address = document.getElementById('addAddress').value.trim();
-                if (!phone && !address) { showToast('Введіть телефон або адресу'); return; }
+                var name = document.getElementById('addName').value.trim();
+                var senderPhone = document.getElementById('addSenderPhone').value.trim();
+                if (!name && !senderPhone) { showToast("Введіть ПІБ або телефон відправника"); return; }
                 body = {
-                    action: 'addPackage',
+                    action: 'addDispatchItem',
                     companyId: getCompanyId(),
-                    sheet: currentSheet,
-                    fields: {
-                        phone: phone,
-                        address: address,
-                        name: document.getElementById('addName').value.trim(),
-                        ttn: document.getElementById('addTtn').value.trim(),
+                    payload: {
+                        sheetName: getDispatchSheetName(),
+                        name: name,
+                        parcelNum: document.getElementById('addParcelNum').value.trim(),
+                        city: document.getElementById('addCity').value.trim(),
+                        description: document.getElementById('addDescription').value.trim(),
                         weight: document.getElementById('addWeight').value.trim(),
                         amount: document.getElementById('addAmount').value.trim(),
-                        note: document.getElementById('addNote').value.trim(),
-                        vehicle: currentSheet
+                        paymentType: document.getElementById('addPaymentType').value.trim(),
+                        currency: document.getElementById('addCurrency').value.trim(),
+                        envelope: document.getElementById('addEnvelope').value.trim(),
+                        senderPhone: senderPhone
                     }
                 };
             } else {
@@ -1782,8 +1942,16 @@
                 if (result.success) {
                     showToast('&#9989; Додано!');
                     closeAddLead();
-                    lastUpdateTime = 0;
-                    await fetchDeliveries();
+                    if (isDelivery) {
+                        dispatchLastUpdate = 0;
+                        currentFilter = 'dispatch';
+                        document.querySelectorAll('.filter-btn').forEach(function(btn) { btn.classList.remove('active'); });
+                        document.getElementById('filterDispatch').classList.add('active');
+                        await fetchDispatchData();
+                    } else {
+                        lastUpdateTime = 0;
+                        await fetchDeliveries();
+                    }
                 } else if (result.error === 'duplicate') {
                     showToast('&#9888; ' + (result.message || 'Знайдено дублікат'));
                 } else {
