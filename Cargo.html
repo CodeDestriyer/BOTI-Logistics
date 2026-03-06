@@ -2364,6 +2364,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             });
         }
+        // Відновлюємо офлайн-буферні ліди
+        const offlineBuf = getOfflineBuffer();
+        if (offlineBuf.length > 0) {
+            let restored = 0;
+            offlineBuf.forEach(op => {
+                const exists = packages.some(p => p.id === op.id || (p.ttn && p.ttn === op.ttn && p.phone === op.phone));
+                if (!exists) {
+                    op._isOffline = true;
+                    packages.unshift(op);
+                    restored++;
+                } else {
+                    removeFromOfflineBuffer(op.id);
+                }
+            });
+            if (restored > 0) showToast('📋 Відновлено ' + restored + ' офлайн ' + (restored === 1 ? 'лід' : 'лідів'));
+            // Пробуємо відправити
+            retryOfflineBuffer();
+        }
+
         render();
         updateVehiclesList();
         updateAllCounts();
@@ -2373,7 +2392,15 @@ document.addEventListener('DOMContentLoaded', () => {
     .catch(err => {
         hideLoader();
         console.error('Init load error:', err);
-        showToast('❌ Помилка завантаження');
+
+        // Навіть якщо сервер недоступний — показуємо офлайн-буферні ліди
+        const offlineBuf = getOfflineBuffer();
+        if (offlineBuf.length > 0) {
+            offlineBuf.forEach(op => { op._isOffline = true; packages.unshift(op); });
+            showToast('📴 Офлайн режим. Показано ' + offlineBuf.length + ' збережених лідів.');
+        } else {
+            showToast('❌ Помилка завантаження');
+        }
         render();
     });
 
@@ -2468,6 +2495,26 @@ function silentSync() {
                 playNotificationSound();
                 showToast(`🆕 Новий лід! (${newCount})`);
             }
+
+            // Додаємо офлайн-буферні ліди, які ще не з'явились на сервері
+            const offlineBuf = getOfflineBuffer();
+            if (offlineBuf.length > 0) {
+                offlineBuf.forEach(op => {
+                    const exists = packages.some(p => p.id === op.id || (p.ttn && p.ttn === op.ttn && p.phone === op.phone));
+                    if (!exists) {
+                        op._isOffline = true;
+                        packages.unshift(op);
+                    } else {
+                        // Сервер вже має цей лід — видаляємо з буфера
+                        removeFromOfflineBuffer(op.id);
+                    }
+                });
+                if (offlineBuf.length > 0) {
+                    render();
+                }
+                // Пробуємо відправити буферні ліди
+                retryOfflineBuffer();
+            }
         }
     })
     .catch(err => {
@@ -2499,6 +2546,80 @@ function playNotificationSound() {
 
 function loadSettings() { try { const s = JSON.parse(localStorage.getItem('yuraCrmPackagesV1')||'{}'); if(s.colSettings)colSettings=s.colSettings; if(s.hiddenCols)hiddenCols=new Set(s.hiddenCols); if(s.columnLabels){Object.keys(s.columnLabels).forEach(k=>{if(ALL_COLUMNS[k])ALL_COLUMNS[k].label=s.columnLabels[k];});} } catch(e){} }
 function saveSettings() { const columnLabels={}; Object.keys(ALL_COLUMNS).forEach(k=>{columnLabels[k]=ALL_COLUMNS[k].label;}); localStorage.setItem('yuraCrmPackagesV1', JSON.stringify({colSettings,vehicles,columnLabels,hiddenCols:[...hiddenCols]})); }
+
+// === ОФЛАЙН БУФЕР: збереження незбережених лідів ===
+const OFFLINE_BUFFER_KEY = 'yuraCrmOfflineBuffer';
+
+function getOfflineBuffer() {
+    try { return JSON.parse(localStorage.getItem(OFFLINE_BUFFER_KEY) || '[]'); } catch(e) { return []; }
+}
+
+function addToOfflineBuffer(pkg) {
+    const buf = getOfflineBuffer();
+    buf.push({ ...pkg, _offlineTs: Date.now() });
+    localStorage.setItem(OFFLINE_BUFFER_KEY, JSON.stringify(buf));
+}
+
+function removeFromOfflineBuffer(pkgId) {
+    const buf = getOfflineBuffer().filter(p => p.id !== pkgId);
+    localStorage.setItem(OFFLINE_BUFFER_KEY, JSON.stringify(buf));
+}
+
+function clearOfflineBuffer() {
+    localStorage.removeItem(OFFLINE_BUFFER_KEY);
+}
+
+// Повторна відправка збережених офлайн лідів
+async function retryOfflineBuffer() {
+    const buf = getOfflineBuffer();
+    if (!buf.length) return;
+
+    let sent = 0;
+    for (const pkg of buf) {
+        try {
+            const payload = {
+                action: 'addPackage',
+                companyId: getCompanyId(),
+                fields: {
+                    direction: pkg.direction, vo: pkg.vo || '', number: pkg.number || '',
+                    ttn: pkg.ttn || '', weight: pkg.weight || '', address: pkg.address || '',
+                    phone: pkg.phone || '', amount: pkg.amount || '', payStatus: pkg.payStatus || '',
+                    payment: pkg.payment || '', phoneReg: pkg.phoneReg || '', note: pkg.note || '',
+                    parcelStatus: pkg.parcelStatus || '', name: pkg.name || '', dateReg: pkg.dateReg || '',
+                    timing: pkg.timing || '', smsNote: pkg.smsNote || '', dateReceive: pkg.dateReceive || '',
+                    photo: pkg.photo || '', status: pkg.status || '', vehicle: pkg.vehicle || ''
+                }
+            };
+            const resp = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
+            const data = await resp.json();
+            if (data.success) {
+                // Оновлюємо локальний пакет
+                const p = packages.find(x => x.id === pkg.id);
+                if (p) { p.id = data.id; p._sheet = data.sheet; p._rowNum = data.rowNum; }
+                removeFromOfflineBuffer(pkg.id);
+                sent++;
+            }
+        } catch(e) {
+            // Мережа ще не відновилась — зупиняємо
+            break;
+        }
+    }
+    if (sent > 0) {
+        saveSettings();
+        render();
+        showToast('✅ Синхронізовано ' + sent + ' офлайн ' + (sent === 1 ? 'лід' : 'лідів'));
+    }
+}
+
+// Слухаємо відновлення мережі
+window.addEventListener('online', () => {
+    showToast('🌐 Мережа відновлена. Синхронізація...');
+    setTimeout(() => retryOfflineBuffer(), 1500);
+});
+
+window.addEventListener('offline', () => {
+    showToast('📴 Немає мережі. Дані зберігаються локально.');
+});
 
 // SIDE MENU
 function openSideMenu() { document.getElementById('sideMenu').classList.add('open'); document.getElementById('sideMenuOverlay').classList.add('show'); renderMobileCalendar(); updateMobileVehicles(); }
@@ -7488,6 +7609,9 @@ function syncWithSheets() {
 function savePackageToServer(pkg) {
     showLoader('Збереження...', '');
 
+    // Зберігаємо в офлайн буфер на випадок помилки
+    addToOfflineBuffer(pkg);
+
     const payload = {
         action: 'addPackage',
         companyId: getCompanyId(),
@@ -7532,12 +7656,17 @@ function savePackageToServer(pkg) {
                 p._sheet = data.sheet;
                 p._rowNum = data.rowNum;
             }
+            // Видаляємо з офлайн буфера — успішно збережено
+            removeFromOfflineBuffer(pkg.id);
             saveSettings();
             render();
             showToast('✅ Збережено: ' + data.id);
-            
+
             // Перевіряємо місткість після додавання
             checkAllCapacityWarnings();
+
+            // Швидка синхронізація — одразу підтягуємо актуальні дані
+            setTimeout(() => silentSync(), 2000);
         } else {
             showToast('⚠️ Помилка: ' + data.error);
         }
@@ -7545,7 +7674,7 @@ function savePackageToServer(pkg) {
     .catch(err => {
         hideLoader();
         console.error('Save error:', err);
-        showToast('⚠️ Збережено локально');
+        showToast('⚠️ Збережено локально. Буде відправлено при відновленні мережі.');
     });
 }
 
@@ -7555,7 +7684,7 @@ function updatePackageOnServer(pkg) {
     const pRowNum = pkg._rowNum || pkg.rowNum;
     if (!pSheet || !pRowNum) {
         console.warn('Немає sheet або rowNum:', pkg);
-        showToast('Синхронізуй спочатку');
+        showToast('⚠️ Лід ще не синхронізований з сервером. Спробуйте пізніше.');
         return;
     }
 
@@ -7599,14 +7728,14 @@ function updatePackageOnServer(pkg) {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            // Тихе збереження - не показуємо тост при кожному оновленні
+            // Тихе збереження
         } else {
             showToast('❌ ' + data.error);
         }
     })
     .catch(err => {
         console.error('❌ Fetch error:', err);
-        showToast('❌ Помилка зв\'язку');
+        showToast('⚠️ Зміни збережено локально. Синхронізація при відновленні мережі.');
     });
 }
 
