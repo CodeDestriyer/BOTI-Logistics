@@ -253,6 +253,10 @@ function doPost(e) {
         return respond(addDispatchItem(payload));
       case 'updateDispatchStatus':
         return respond(updateDispatchStatus(data));
+      case 'editDispatchItem':
+        return respond(editDispatchItem(payload));
+      case 'editRoutePackage':
+        return respond(editRoutePackage(payload));
 
       // --- ДЕБАГ ---
       case 'getStructure':
@@ -1789,6 +1793,112 @@ function updateDispatchStatus(data) {
       'Driver: ' + (data.driverId || '') + ' | Reason: ' + (data.cancelReason || ''));
 
     return { success: true, rowNum: rowNum, status: status };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ============================================
+// editDispatchItem — Редагування відправки в аркуші "(відпр)"
+// ============================================
+function editDispatchItem(payload) {
+  try {
+    var sheetName = payload.sheetName || '';
+    var rowNum = payload.rowNum || 0;
+    if (!sheetName || !rowNum) {
+      return { success: false, error: 'Не вказано аркуш або рядок' };
+    }
+
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      return { success: false, error: 'Аркуш не знайдено: ' + sheetName };
+    }
+    if (rowNum > sheet.getLastRow()) {
+      return { success: false, error: 'Рядок ' + rowNum + ' не існує' };
+    }
+
+    var fieldMap = {
+      name: DCOL.NAME,
+      parcelNum: DCOL.PARCEL_NUM,
+      city: DCOL.CITY,
+      description: DCOL.DESCRIPTION,
+      weight: DCOL.WEIGHT,
+      amount: DCOL.AMOUNT,
+      paymentType: DCOL.PAYMENT_TYPE,
+      currency: DCOL.CURRENCY,
+      envelope: DCOL.ENVELOPE,
+      senderPhone: DCOL.SENDER_PHONE
+    };
+
+    var fields = payload.fields || {};
+    var updated = [];
+    for (var key in fields) {
+      if (fields.hasOwnProperty(key) && fieldMap.hasOwnProperty(key)) {
+        sheet.getRange(rowNum, fieldMap[key] + 1).setValue(fields[key]);
+        updated.push(key);
+      }
+    }
+
+    writeLog('editDispatchItem', sheetName, rowNum, updated.join(', '), JSON.stringify(fields));
+
+    return { success: true, rowNum: rowNum, updated: updated };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ============================================
+// editRoutePackage — Редагування посилки в маршрутному аркуші
+// ============================================
+function editRoutePackage(payload) {
+  try {
+    var sheetName = payload.sheetName || '';
+    var rowNum = payload.rowNum || 0;
+    if (!sheetName || !rowNum) {
+      return { success: false, error: 'Не вказано аркуш або рядок' };
+    }
+
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      return { success: false, error: 'Аркуш не знайдено: ' + sheetName };
+    }
+    if (rowNum > sheet.getLastRow()) {
+      return { success: false, error: 'Рядок ' + rowNum + ' не існує' };
+    }
+
+    var fieldMap = {
+      vo: COL.VO,
+      number: COL.NUMBER,
+      ttn: COL.TTN,
+      weight: COL.WEIGHT,
+      address: COL.ADDRESS,
+      direction: COL.DIRECTION,
+      phone: COL.PHONE,
+      amount: COL.AMOUNT,
+      payStatus: COL.PAY_STATUS,
+      payment: COL.PAYMENT,
+      phoneReg: COL.PHONE_REG,
+      note: COL.NOTE,
+      parcelStatus: COL.PARCEL_STATUS,
+      name: COL.NAME,
+      timing: COL.TIMING,
+      smsNote: COL.SMS_NOTE
+    };
+
+    var fields = payload.fields || {};
+    var updated = [];
+    for (var key in fields) {
+      if (fields.hasOwnProperty(key) && fieldMap.hasOwnProperty(key)) {
+        sheet.getRange(rowNum, fieldMap[key] + 1).setValue(fields[key]);
+        updated.push(key);
+      }
+    }
+
+    writeLog('editRoutePackage', sheetName, rowNum, updated.join(', '), JSON.stringify(fields));
+
+    return { success: true, rowNum: rowNum, updated: updated };
   } catch (err) {
     return { success: false, error: err.message };
   }
