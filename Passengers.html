@@ -3528,7 +3528,7 @@ function updateRoutesList() {
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
                 action: 'getRoutePassengers',
-                payload: { vehicleName: v.routeSheet || v.name }
+                payload: { sheetName: v.routeSheet || v.name, companyId: getCompanyId() }
             })
         })
         .then(r => r.json())
@@ -3665,7 +3665,7 @@ function showVehicleRoute(vehicleId) {
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
                 action: 'getRoutePassengers',
-                payload: { vehicleName: v.routeSheet || v.name }
+                payload: { sheetName: v.routeSheet || v.name, companyId: getCompanyId() }
             })
         }).then(r => r.json()),
         fetch(ROUTE_API_URL, {
@@ -3757,7 +3757,7 @@ async function loadAllRoutePassengers() {
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify({
                         action: 'getRoutePassengers',
-                        payload: { sheetName: route.name }
+                        payload: { sheetName: route.name, companyId: getCompanyId() }
                     })
                 })
                 .then(r => r.json())
@@ -4227,7 +4227,7 @@ function updateRoutesCounts() {
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
                 action: 'getRoutePassengers',
-                payload: { vehicleName: v.routeSheet || v.name }
+                payload: { sheetName: v.routeSheet || v.name, companyId: getCompanyId() }
             })
         })
         .then(r => r.json())
@@ -5893,7 +5893,7 @@ function deleteVehicle(vehicleId) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'deleteRouteSheet',
-            payload: { vehicleName: v.routeSheet || v.name, force: true }
+            payload: { vehicleName: v.routeSheet || v.name, force: true, companyId: getCompanyId() }
         })
     })
     .then(r => r.json())
@@ -6528,9 +6528,11 @@ function updatePassengerOnServer(passenger) {
 
     const payload = {
         action: 'updatePassenger',
+        companyId: getCompanyId(),
         payload: {
             sheet: pSheet,
             rowNum: pRowNum,
+            companyId: getCompanyId(),
             date: passenger.date,
             from: passenger.from,
             to: passenger.to,
