@@ -4909,7 +4909,7 @@ function bulkArchive() {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify({
-                        action: 'archiveToExternal',
+                        action: 'archivePassengers',
                         companyId: getCompanyId(),
                         payload: { passengers: routePassengers, user: 'crm', reason: 'bulk_archive' }
                     })
@@ -6133,7 +6133,7 @@ function confirmDeletePassenger(uid) {
         const isRoute = !!p._isRouteData;
         const apiUrl = isRoute ? ROUTE_API_URL : API_URL;
         const body = isRoute
-            ? { action: 'archiveToExternal', payload: { passengers: [{ sheet: pSheet, rowNum: pRowNum }], user: 'crm', reason: 'manual_delete' } }
+            ? { action: 'archivePassengers', companyId: getCompanyId(), payload: { passengers: [{ sheet: pSheet, rowNum: pRowNum }], user: 'crm', reason: 'manual_delete' } }
             : { action: 'archivePassenger', payload: { sheet: pSheet, rowNum: pRowNum, user: 'crm', reason: 'manual_delete' } };
 
         fetch(apiUrl, {

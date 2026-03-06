@@ -209,7 +209,7 @@ function doPost(e) {
 
       // --- АРХІВАЦІЯ ---
       case 'archivePassengers':
-        return respond(archiveToExternal(payload));
+        return respond(changeStatus(payload, 'archived'));
 
       case 'restorePassengers':
         return respond(changeStatus(payload, 'work'));
@@ -919,7 +919,7 @@ function handleDriverStatusUpdate(data) {
 function changeStatus(payload, newStatus) {
   try {
     var items = payload.passengers || payload.items || [];
-    var note = payload.note || '';
+    var note = payload.note || payload.reason || '';
     if (items.length === 0) return { success: false, error: 'Немає пасажирів' };
 
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -963,6 +963,8 @@ function changeStatus(payload, newStatus) {
     return {
       success: true,
       changed: changed,
+      count: changed,
+      archived: newStatus === 'archived' ? changed : 0,
       total: items.length,
       status: newStatus,
       errors: errors.length > 0 ? errors : undefined
