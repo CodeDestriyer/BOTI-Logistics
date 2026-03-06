@@ -3655,7 +3655,7 @@ function updateRoutesList() {
     fetch(ROUTE_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'getAvailableRoutes' })
+        body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
     })
     .then(r => r.json())
     .then(data => {
@@ -3753,7 +3753,7 @@ async function updateAllRoutesCount() {
         const response = await fetch(ROUTE_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'getAvailableRoutes' })
+            body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
         });
         const data = await response.json();
         
@@ -3818,13 +3818,14 @@ function showVehicleRoute(vehicleId) {
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
                 action: 'getRoutePassengers',
-                payload: { vehicleName: v.name }
+                companyId: getCompanyId(),
+                payload: { sheetName: v.name }
             })
         }).then(r => r.json()),
         fetch(ROUTE_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'getMailingStatus' })
+            body: JSON.stringify({ action: 'getMailingStatus', companyId: getCompanyId() })
         }).then(r => r.json())
     ])
     .then(([routeData, mailingData]) => {
@@ -3878,12 +3879,12 @@ async function loadAllRoutePassengers() {
             fetch(ROUTE_API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'getMailingStatus' })
+                body: JSON.stringify({ action: 'getMailingStatus', companyId: getCompanyId() })
             }).then(r => r.json()).catch(() => ({ success: false })),
             fetch(ROUTE_API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'getAvailableRoutes' })
+                body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
             }).then(r => r.json()).catch(() => ({ success: false }))
         ]);
         
@@ -3903,6 +3904,7 @@ async function loadAllRoutePassengers() {
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify({
                         action: 'getRoutePassengers',
+                        companyId: getCompanyId(),
                         payload: { sheetName: route.name }
                     })
                 })
@@ -4298,6 +4300,7 @@ function deleteFromRouteOnly(uid) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'archivePackages',
+            companyId: getCompanyId(),
             packages: [{ sheet: sheetName, rowNum: p.rowNum }],
             user: 'crm',
             reason: 'removed_from_route'
@@ -4346,6 +4349,7 @@ function deleteFromRouteAndTrash(uid) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'archivePackages',
+            companyId: getCompanyId(),
             packages: [{ sheet: sheetName, rowNum: p.rowNum }],
             user: 'crm',
             reason: 'route_delete_trash'
@@ -4387,7 +4391,7 @@ function updateRoutesCounts() {
     fetch(ROUTE_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'getAvailableRoutes' })
+        body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
     })
     .then(r => r.json())
     .then(data => {
@@ -4565,6 +4569,7 @@ function bulkRestore() {
                 headers: { 'Content-Type': 'text/plain' },
                 body: JSON.stringify({
                     action: 'restorePackages',
+                    companyId: getCompanyId(),
                     packages: routePackages
                 })
             }).then(r => r.json())
@@ -4645,6 +4650,7 @@ function bulkMarkNotified() {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'addMailingRecord',
+            companyId: getCompanyId(),
             payload: {
                 records: records,
                 userName: userName.trim()
@@ -4780,6 +4786,7 @@ function bulkMoveToRoute() {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'checkRouteSheets',
+            companyId: getCompanyId(),
             payload: { vehicleNames: Object.keys(byVehicle) }
         })
     })
@@ -4858,6 +4865,7 @@ function executeCopyToRoute(byVehicle, withVehicle, conflictAction) {
 
     const payload = {
         action: 'copyToRoute',
+        companyId: getCompanyId(),
         payload: {
             packagesByVehicle: routeData,
             conflictAction: conflictAction // 'add', 'archive', 'clear'
@@ -4964,6 +4972,7 @@ function bulkArchive() {
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify({
                         action: 'archivePackages',
+                        companyId: getCompanyId(),
                         packages: routePackages
                     })
                 }).then(r => r.json())
@@ -5838,6 +5847,7 @@ function deleteVehicle(vehicleId) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'deleteRouteSheet',
+            companyId: getCompanyId(),
             payload: { vehicleName: v.name, force: true }
         })
     })
@@ -7262,6 +7272,11 @@ function savePackageToServer(pkg) {
             
             // Перевіряємо місткість після додавання
             checkAllCapacityWarnings();
+
+            // Авто-додавання в маршрут якщо призначено авто
+            if (pkg.vehicle && p) {
+                autoCopyToRoute(p);
+            }
         } else {
             showToast('⚠️ Помилка: ' + data.error);
         }
@@ -7271,6 +7286,43 @@ function savePackageToServer(pkg) {
         console.error('Save error:', err);
         showToast('⚠️ Збережено локально');
     });
+}
+
+// AUTO COPY TO ROUTE — автоматично додає посилку в маршрут при наявності авто
+function autoCopyToRoute(pkg) {
+    const veh = vehicles.find(v => v.id === pkg.vehicle || v.name === pkg.vehicle);
+    const sheetName = veh ? (veh.routeSheet || veh.name) : pkg.vehicle;
+    if (!sheetName) return;
+
+    const routeData = {};
+    routeData[sheetName] = [{ ...pkg, direction: sheetName }];
+
+    fetch(ROUTE_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+            action: 'copyToRoute',
+            companyId: getCompanyId(),
+            payload: {
+                packagesByVehicle: routeData,
+                conflictAction: 'add'
+            }
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            pkg.status = 'route';
+            pkg.mark = 'Маршрут';
+            saveSettings();
+            render();
+            updateAllCounts();
+            showToast('🚀 Додано в маршрут');
+        } else {
+            console.warn('Auto route failed:', data.error);
+        }
+    })
+    .catch(err => console.error('Auto route error:', err));
 }
 
 // UPDATE - Оновити посилку на сервері

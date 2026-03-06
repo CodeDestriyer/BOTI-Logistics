@@ -2210,7 +2210,7 @@ async function syncVehiclesFromServer() {
         const res = await fetch(ROUTE_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'getAvailableRoutes' })
+            body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
         });
         const data = await res.json();
         if (!data.success || !data.routes) return;
@@ -3610,10 +3610,10 @@ async function updateAllRoutesCount() {
         const response = await fetch(ROUTE_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'getAvailableRoutes' })
+            body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
         });
         const data = await response.json();
-        
+
         if (data.success && data.routes) {
             // Фільтруємо: тільки аркуші маршрутів (ігноруємо логи, розсилка тощо)
             const validRoutes = data.routes.filter(r => isRouteSheet(r.name));
@@ -3671,7 +3671,7 @@ function showVehicleRoute(vehicleId) {
         fetch(ROUTE_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'getMailingStatus' })
+            body: JSON.stringify({ action: 'getMailingStatus', companyId: getCompanyId() })
         }).then(r => r.json())
     ])
     .then(([routeData, mailingData]) => {
@@ -3724,12 +3724,12 @@ async function loadAllRoutePassengers() {
             fetch(ROUTE_API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'getMailingStatus' })
+                body: JSON.stringify({ action: 'getMailingStatus', companyId: getCompanyId() })
             }).then(r => r.json()).catch(() => ({ success: false })),
             fetch(ROUTE_API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'getAvailableRoutes' })
+                body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
             }).then(r => r.json()).catch(() => ({ success: false }))
         ]);
         
@@ -4149,6 +4149,7 @@ function deleteFromRouteOnly(uid) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'deleteRoutePassenger',
+            companyId: getCompanyId(),
             payload: { sheetName: sheetName, rowNum: p.rowNum }
         })
     })
@@ -4190,6 +4191,7 @@ function deleteFromRouteAndTrash(uid) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'deleteRoutePassenger',
+            companyId: getCompanyId(),
             payload: { sheetName: sheetName, rowNum: p.rowNum }
         })
     })
@@ -4440,6 +4442,7 @@ function bulkMarkNotified() {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'addMailingRecord',
+            companyId: getCompanyId(),
             payload: {
                 records: records,
                 userName: userName.trim()
@@ -4584,6 +4587,7 @@ function bulkMoveToRoute() {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'checkRouteSheets',
+            companyId: getCompanyId(),
             payload: { vehicleNames: Object.keys(byVehicle) }
         })
     })
@@ -4713,6 +4717,7 @@ function executeCopyToRoute(byVehicle, withVehicle, conflictAction) {
 
     const payload = {
         action: 'copyToRoute',
+        companyId: getCompanyId(),
         payload: {
             passengersByVehicle: byVehicle,
             conflictAction: conflictAction
@@ -4820,6 +4825,7 @@ function bulkArchive() {
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify({
                         action: 'archiveToExternal',
+                        companyId: getCompanyId(),
                         payload: { passengers: routePassengers, user: 'crm', reason: 'bulk_archive' }
                     })
                 }).then(r => r.json())
@@ -5049,6 +5055,7 @@ function bulkDeleteForever() {
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
                 action: 'deletePassengersPermanently',
+                companyId: getCompanyId(),
                 payload: { passengers: serverPassengers }
             })
         })
@@ -5844,6 +5851,7 @@ function saveVehicle() {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'createRouteSheet',
+            companyId: getCompanyId(),
             payload: { vehicleName: name }
         })
     })
@@ -6502,6 +6510,11 @@ function savePassengerToServer(passenger) {
             
             // Перевіряємо місткість після додавання
             checkAllCapacityWarnings();
+
+            // Авто-додавання в маршрут якщо призначено авто
+            if (passenger.vehicle && p) {
+                autoCopyToRoute(p);
+            }
         } else {
             showToast('⚠️ Помилка: ' + data.error);
         }
@@ -6511,6 +6524,43 @@ function savePassengerToServer(passenger) {
         console.error('Save error:', err);
         showToast('⚠️ Збережено локально');
     });
+}
+
+// AUTO COPY TO ROUTE — автоматично додає пасажира в маршрут при наявності авто
+function autoCopyToRoute(passenger) {
+    const veh = vehicles.find(v => v.id === passenger.vehicle || v.name === passenger.vehicle);
+    const sheetName = veh ? (veh.routeSheet || veh.name) : passenger.vehicle;
+    if (!sheetName) return;
+
+    const byVehicle = {};
+    byVehicle[sheetName] = [passenger];
+
+    fetch(ROUTE_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+            action: 'copyToRoute',
+            companyId: getCompanyId(),
+            payload: {
+                passengersByVehicle: byVehicle,
+                conflictAction: 'add'
+            }
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            passenger.status = 'route';
+            passenger.mark = 'Маршрут';
+            saveSettings();
+            render();
+            updateAllCounts();
+            showToast('🚀 Додано в маршрут');
+        } else {
+            console.warn('Auto route failed:', data.error);
+        }
+    })
+    .catch(err => console.error('Auto route error:', err));
 }
 
 // UPDATE - Оновити пасажира на сервері
