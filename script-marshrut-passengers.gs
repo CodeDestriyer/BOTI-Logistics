@@ -942,10 +942,17 @@ function changeStatus(payload, newStatus) {
       sheet.getRange(rowNum, COL.STATUS + 1).setValue(newStatus);
 
       if (ARCHIVE_STATUSES.indexOf(newStatus) !== -1) {
+        var companyId = payload.companyId || '';
         sheet.getRange(rowNum, COL.DATE_ARCHIVE + 1).setValue(dateNow);
-        sheet.getRange(rowNum, COL.ARCHIVED_BY + 1).setValue(user);
+        // Записуємо хто архівував у форматі: archived_компанія
+        var archivedBy = companyId ? ('archived_' + companyId) : user;
+        sheet.getRange(rowNum, COL.ARCHIVED_BY + 1).setValue(archivedBy);
         if (note) {
           sheet.getRange(rowNum, COL.ARCHIVE_REASON + 1).setValue(note);
+        }
+        // Записуємо companyId щоб точно був в рядку
+        if (companyId) {
+          sheet.getRange(rowNum, COL.COMPANY_ID + 1).setValue(companyId);
         }
       }
 
