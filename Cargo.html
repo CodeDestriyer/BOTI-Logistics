@@ -2317,11 +2317,12 @@ function loadVehiclesFromAPI() {
     .then(r => r.json())
     .then(data => {
         if (data.success && data.routes && data.routes.length > 0) {
-            // Оновлюємо routeSheet для кожного авто з реальних назв листів
+            // Оновлюємо name + routeSheet для кожного авто з реальних назв листів
             data.routes.forEach((route, idx) => {
                 const sheetName = route.name || route.vehicle;
                 if (sheetName && vehicles[idx]) {
                     vehicles[idx].routeSheet = sheetName;
+                    vehicles[idx].name = sheetName;
                 }
             });
             // Якщо в таблиці більше маршрутів ніж авто — додаємо нові
@@ -2329,7 +2330,7 @@ function loadVehiclesFromAPI() {
                 const sheetName = data.routes[i].name || data.routes[i].vehicle;
                 vehicles.push({
                     id: 'v' + (i + 1),
-                    name: 'Авто ' + (i + 1),
+                    name: sheetName || ('Маршрут ' + (i + 1)),
                     routeSheet: sheetName || ('Маршрут ' + (i + 1)),
                     maxWeight: 2000,
                     maxPoints: 60
