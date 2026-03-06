@@ -1939,25 +1939,30 @@
                     body: JSON.stringify(body)
                 });
                 var result = await response.json();
-                if (result.success) {
-                    showToast('&#9989; Додано!');
-                    closeAddLead();
-                    if (isDelivery) {
-                        dispatchLastUpdate = 0;
-                        currentFilter = 'dispatch';
-                        document.querySelectorAll('.filter-btn').forEach(function(btn) { btn.classList.remove('active'); });
-                        document.getElementById('filterDispatch').classList.add('active');
-                        await fetchDispatchData();
-                    } else {
-                        lastUpdateTime = 0;
-                        await fetchDeliveries();
-                    }
-                } else if (result.error === 'duplicate') {
+                console.log('addLead response:', JSON.stringify(result));
+                if (result.error === 'duplicate') {
                     showToast('&#9888; ' + (result.message || 'Знайдено дублікат'));
-                } else {
+                    return;
+                }
+                if (result.error && !result.success) {
                     showToast('&#10060; ' + (result.error || 'Помилка'));
+                    return;
+                }
+                // success — закриваємо модалку і оновлюємо список
+                showToast('&#9989; Додано!');
+                closeAddLead();
+                if (isDelivery) {
+                    dispatchLastUpdate = 0;
+                    currentFilter = 'dispatch';
+                    document.querySelectorAll('.filter-btn').forEach(function(btn) { btn.classList.remove('active'); });
+                    document.getElementById('filterDispatch').classList.add('active');
+                    await fetchDispatchData();
+                } else {
+                    lastUpdateTime = 0;
+                    await fetchDeliveries();
                 }
             } catch (err) {
+                console.error('addLead error:', err);
                 showToast('&#10060; ' + err.message);
             }
         }
