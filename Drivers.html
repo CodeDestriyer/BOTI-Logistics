@@ -1195,7 +1195,6 @@
                     '<button class="status-btn-card status-in-progress-btn" onclick="setDispatchStatus(\'' + safeStatusKey + '\',\'in-progress\')">&#128260;</button>' +
                     '<button class="status-btn-card status-completed-btn" onclick="setDispatchStatus(\'' + safeStatusKey + '\',\'completed\')">&#9989;</button>' +
                     '<button class="status-btn-card status-cancelled-btn" onclick="setDispatchStatus(\'' + safeStatusKey + '\',\'cancelled\')">&#10060;</button>' +
-                    '<button class="status-btn-card status-undo-btn" onclick="setDispatchStatus(\'' + safeStatusKey + '\',\'pending\')" ' + (canUndo ? '' : 'disabled') + '>&#8617;</button>' +
                     '<button class="status-btn-card" onclick="openEditDispatch(' + index + ')" style="background:#1a3a5e;color:white;border-color:#1a3a5e;">&#9998;</button>' +
                 '</div>' +
                 '<div class="card-expandable" id="expand-' + uid + '">' +
@@ -1309,7 +1308,6 @@
                         '<button class="status-btn-card status-in-progress-btn" onclick="setDeliveryStatus(\'' + safeStatusKey + '\',\'in-progress\')">&#128260;</button>' +
                         '<button class="status-btn-card status-completed-btn" onclick="setDeliveryStatus(\'' + safeStatusKey + '\',\'completed\')">&#9989;</button>' +
                         '<button class="status-btn-card status-cancelled-btn" onclick="showCancelReason(\'' + uid + '\',\'' + safeStatusKey + '\')">&#10060;</button>' +
-                        '<button class="status-btn-card status-undo-btn" onclick="undoStatus(\'' + safeStatusKey + '\')" ' + (canUndo ? '' : 'disabled') + '>&#8617;</button>' +
                         '<button class="status-btn-card" onclick="openEditDelivery(' + globalIndex + ')" style="background:#1a3a5e;color:white;border-color:#1a3a5e;">&#9998;</button>' +
                     '</div>' +
                     '<div class="card-expandable" id="expand-' + uid + '">' +
