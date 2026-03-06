@@ -714,9 +714,20 @@
                 </div>
             </div>
             <div class="route-section">
-                <div class="route-section-title">&#128101; ПАСАЖИРИ <button onclick="loadPassengerRoutes()" style="background:none;border:none;cursor:pointer;font-size:14px;">&#128260;</button></div>
+                <div class="route-section-title">&#128101; ПАСАЖИРИ</div>
                 <div class="routes-grid" id="passengerRoutesGrid">
-                    <div style="text-align:center;color:rgba(255,255,255,0.7);padding:20px;">Завантаження...</div>
+                    <div class="route-card" onclick="selectRoute('Маршрут 1', '', 'passenger')">
+                        <div class="route-name">Маршрут 1</div>
+                        <span class="route-type-badge badge-passenger">ПАСАЖИРИ</span>
+                    </div>
+                    <div class="route-card" onclick="selectRoute('Маршрут 2', '', 'passenger')">
+                        <div class="route-name">Маршрут 2</div>
+                        <span class="route-type-badge badge-passenger">ПАСАЖИРИ</span>
+                    </div>
+                    <div class="route-card" onclick="selectRoute('Маршрут 3', '', 'passenger')">
+                        <div class="route-name">Маршрут 3</div>
+                        <span class="route-type-badge badge-passenger">ПАСАЖИРИ</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -769,8 +780,6 @@
             DELIVERY_API_URL: 'https://script.google.com/macros/s/AKfycbxtfhsI2ksss5CRk5g76yL1ICutCdeY5J2Fjvr7-qoqOdItytqWS8XrHMJbr28n9fM0/exec',
             // Маршрут Пасажири API v1.1
             PASSENGER_API_URL: 'https://script.google.com/macros/s/AKfycbyG5Ef0tooEOV7-qBPgIiDNEdPZDt2clLFQdzOeeKbiUhcWmjcedSEQP4PnlPqcqI4V/exec',
-            // Список маршрутів пасажирів (той самий API)
-            ROUTES_API_URL: 'https://script.google.com/macros/s/AKfycbyG5Ef0tooEOV7-qBPgIiDNEdPZDt2clLFQdzOeeKbiUhcWmjcedSEQP4PnlPqcqI4V/exec',
             // Архів API v1.0
             ARCHIVE_API_URL: 'https://script.google.com/macros/s/AKfycbwJLGZgYT333VdMW-nM5kPjYs2WIGGjfqkZnDJYjJxUt8nzE8GDGCPm7EzMHhcxNDOn/exec',
             GOOGLE_MAPS_KEY: 'AIzaSyDbSS6XSCJ3MafbrSp-rIX1-x130bwzevo',
@@ -842,38 +851,7 @@
             driverName = botiSession.email || botiSession.name || '';
             document.getElementById('driverInfoDisplay').innerHTML = '&#128100; Водій: ' + escapeHtml(driverName);
             showScreen('routeScreen');
-            loadPassengerRoutes();
         });
-        async function loadPassengerRoutes() {
-            var grid = document.getElementById('passengerRoutesGrid');
-            if (!grid) return;
-            grid.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,0.7);padding:20px;">&#9203; Завантаження...</div>';
-            try {
-                var response = await fetch(CONFIG.ROUTES_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
-                });
-                var data = await response.json();
-                if (data.success && data.routes && data.routes.length > 0) {
-                    var passengerRoutes = data.routes;
-                    if (passengerRoutes.length === 0) {
-                        grid.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,0.7);padding:20px;">Немає маршрутів</div>';
-                        return;
-                    }
-                    grid.innerHTML = passengerRoutes.map(function(route) {
-                        return '<div class="route-card" onclick="selectRoute(\'' + escapeHtml(route.name) + '\', \'\', \'passenger\')">' +
-                            '<div class="route-name">' + escapeHtml(route.name) + '</div>' +
-                            '<span class="route-type-badge badge-passenger">ПАСАЖИРИ (' + route.count + ')</span>' +
-                        '</div>';
-                    }).join('');
-                } else {
-                    grid.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,0.7);padding:20px;">Немає маршрутів</div>';
-                }
-            } catch (error) {
-                console.error('Помилка завантаження маршрутів:', error);
-                grid.innerHTML = '<div style="text-align:center;color:#ff6b6b;padding:20px;">&#10060; Помилка завантаження</div>';
-            }
         }
         function showToast(message) {
             var toast = document.getElementById('toast');
