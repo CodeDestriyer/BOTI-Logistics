@@ -69,9 +69,10 @@ var COL = {
   ARCHIVED_BY: 22,    // W — ARCHIVED_BY
   ARCHIVE_REASON: 23, // X — ARCHIVE_REASON
   SOURCE_SHEET: 24,   // Y — SOURCE_SHEET
-  ARCHIVE_ID: 25      // Z — ARCHIVE_ID
+  ARCHIVE_ID: 25,     // Z — ARCHIVE_ID
+  COMPANY_ID: 26      // AA — company_id
 };
-var TOTAL_COLS = 26;
+var TOTAL_COLS = 27;
 
 // Заголовки для нового аркуша
 var HEADERS = [
@@ -80,7 +81,7 @@ var HEADERS = [
   'Телефон Реєстратора', 'Примітка', 'Статус посилки', 'ІД', 'ПіБ',
   'дата оформлення', 'Таймінг', 'Примітка смс', 'Дата отримання', 'фото',
   'Статус', 'DATE_ARCHIVE', 'ARCHIVED_BY', 'ARCHIVE_REASON',
-  'SOURCE_SHEET', 'ARCHIVE_ID'
+  'SOURCE_SHEET', 'ARCHIVE_ID', 'company_id'
 ];
 
 // Статуси для архівації
@@ -127,7 +128,8 @@ var FIELD_MAP = {
   archivedBy: COL.ARCHIVED_BY,
   archiveReason: COL.ARCHIVE_REASON,
   sourceSheet: COL.SOURCE_SHEET,
-  archiveId: COL.ARCHIVE_ID
+  archiveId: COL.ARCHIVE_ID,
+  companyId: COL.COMPANY_ID
 };
 
 // ============================================
@@ -605,6 +607,7 @@ function copyToRoute(payload) {
         newRow[COL.PHOTO] = pkg.photo || '';
         newRow[COL.STATUS] = 'new';
         newRow[COL.SOURCE_SHEET] = pkg.sourceSheet || '';
+        newRow[COL.COMPANY_ID] = payload.companyId || '';
 
         rows.push(newRow);
       }
