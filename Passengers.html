@@ -4162,7 +4162,7 @@ function deleteFromRouteOnly(uid) {
         body: JSON.stringify({
             action: 'deleteRoutePassenger',
             companyId: getCompanyId(),
-            payload: { sheetName: sheetName, rowNum: p.rowNum }
+            payload: { sheetName: sheetName, rowNum: p.rowNum || p._rowNum }
         })
     })
     .then(r => r.json())
@@ -4174,6 +4174,7 @@ function deleteFromRouteOnly(uid) {
             routeStats.total = routePassengers.length;
             renderRoutePassengers();
             updateAllCounts();
+            updateRoutesList();
             showToast('📋 Видалено з маршруту');
         } else {
             showToast('❌ ' + (data.error || 'Помилка'));
@@ -4204,7 +4205,7 @@ function deleteFromRouteAndTrash(uid) {
         body: JSON.stringify({
             action: 'deleteRoutePassenger',
             companyId: getCompanyId(),
-            payload: { sheetName: sheetName, rowNum: p.rowNum }
+            payload: { sheetName: sheetName, rowNum: p.rowNum || p._rowNum }
         })
     })
     .then(r => r.json())
@@ -4224,6 +4225,7 @@ function deleteFromRouteAndTrash(uid) {
         routeStats.total = routePassengers.length;
         renderRoutePassengers();
         updateAllCounts();
+        updateRoutesList();
         showToast('🗑️ Видалено в корзину');
     })
     .catch(err => {
