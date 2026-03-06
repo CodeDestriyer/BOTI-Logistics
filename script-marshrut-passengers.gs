@@ -72,9 +72,10 @@ var COL = {
   ARCHIVED_BY: 19,    // T — ARCHIVED_BY
   ARCHIVE_REASON: 20, // U — ARCHIVE_REASON
   SOURCE_SHEET: 21,   // V — SOURCE_SHEET
-  ARCHIVE_ID: 22      // W — ARCHIVE_ID
+  ARCHIVE_ID: 22,     // W — ARCHIVE_ID
+  COMPANY_ID: 23      // X — company_id
 };
-var TOTAL_COLS = 23;
+var TOTAL_COLS = 24;
 
 // Заголовки для нового аркуша
 var HEADERS = [
@@ -83,7 +84,7 @@ var HEADERS = [
   'Диспечер', 'ІД', 'Телефон Реєстратора', 'Вага', 'Автомобіль',
   'Таймінг', 'дата оформлення', 'Примітка',
   'Статус', 'DATE_ARCHIVE', 'ARCHIVED_BY', 'ARCHIVE_REASON',
-  'SOURCE_SHEET', 'ARCHIVE_ID'
+  'SOURCE_SHEET', 'ARCHIVE_ID', 'company_id'
 ];
 
 // Статуси для архівації
@@ -530,6 +531,7 @@ function copyToRoute(payload) {
         newRow[COL.NOTE] = pass.note || '';
         newRow[COL.STATUS] = 'new';
         newRow[COL.SOURCE_SHEET] = pass.sourceSheet || pass.sheet || '';
+        newRow[COL.COMPANY_ID] = payload.companyId || '';
 
         rows.push(newRow);
       }
@@ -1502,17 +1504,10 @@ function addPassengerToRoute(payload) {
     newRow[COL.NOTE] = payload.note || '';
     newRow[COL.STATUS] = 'new';
 
+    newRow[COL.COMPANY_ID] = payload.companyId || '';
+
     sheet.appendRow(newRow);
     var newRowNum = sheet.getLastRow();
-
-    // Записуємо company_id якщо колонка є
-    var companyId = payload.companyId || '';
-    if (companyId) {
-      var compCol = findCompanyIdCol(sheet);
-      if (compCol >= 0) {
-        sheet.getRange(newRowNum, compCol + 1).setValue(companyId);
-      }
-    }
 
     writeLog('addPassenger', sheetName, newRowNum, 'new',
       'ПіБ: ' + (payload.name || '') + ' | Тел: ' + (payload.phone || '') + ' | Driver UI');
