@@ -7272,11 +7272,6 @@ function savePackageToServer(pkg) {
             
             // Перевіряємо місткість після додавання
             checkAllCapacityWarnings();
-
-            // Авто-додавання в маршрут якщо призначено авто
-            if (pkg.vehicle && p) {
-                autoCopyToRoute(p);
-            }
         } else {
             showToast('⚠️ Помилка: ' + data.error);
         }
@@ -7286,43 +7281,6 @@ function savePackageToServer(pkg) {
         console.error('Save error:', err);
         showToast('⚠️ Збережено локально');
     });
-}
-
-// AUTO COPY TO ROUTE — автоматично додає посилку в маршрут при наявності авто
-function autoCopyToRoute(pkg) {
-    const veh = vehicles.find(v => v.id === pkg.vehicle || v.name === pkg.vehicle);
-    const sheetName = veh ? (veh.routeSheet || veh.name) : pkg.vehicle;
-    if (!sheetName) return;
-
-    const routeData = {};
-    routeData[sheetName] = [{ ...pkg, direction: sheetName }];
-
-    fetch(ROUTE_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-            action: 'copyToRoute',
-            companyId: getCompanyId(),
-            payload: {
-                packagesByVehicle: routeData,
-                conflictAction: 'add'
-            }
-        })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            pkg.status = 'route';
-            pkg.mark = 'Маршрут';
-            saveSettings();
-            render();
-            updateAllCounts();
-            showToast('🚀 Додано в маршрут');
-        } else {
-            console.warn('Auto route failed:', data.error);
-        }
-    })
-    .catch(err => console.error('Auto route error:', err));
 }
 
 // UPDATE - Оновити посилку на сервері
