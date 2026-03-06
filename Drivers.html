@@ -895,7 +895,7 @@
             deliveries = [];
             dispatchData = [];
             dispatchLastUpdate = 0;
-            currentSheet = route;
+            currentSheet = (routeType === 'passenger') ? 'Пас. ' + route : route;
             currentRouteType = routeType;
             deliveryStatuses = {};
             newDeliveries = [];
