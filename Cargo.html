@@ -2376,12 +2376,8 @@ async function loadVehiclesFromAPI() {
             return false;
         });
 
-        // 3) Оновлюємо name з routeSheet для всіх, щоб назви були актуальні
-        vehicles.forEach(v => {
-            if (v.routeSheet && serverNames.includes(v.routeSheet)) {
-                v.name = v.routeSheet;
-            }
-        });
+        // 3) Зберігаємо серверні маршрути окремо (для меню маршрутів)
+        window._serverRoutes = serverSheets;
 
         saveSettings();
         updateVehiclesList();
@@ -3229,9 +3225,9 @@ function getFilteredData() {
     if (!filters.showNewOnly && filters.direction && filters.direction !== 'all') data = data.filter(p => p.direction === filters.direction);
     if (filters.statusFilter) data = data.filter(p => p.status === filters.statusFilter);
     if (filters.routeVehicle) {
-        const rv = vehicles.find(x => x.id === filters.routeVehicle);
-        const rvName = rv ? rv.name : filters.routeVehicle;
-        data = data.filter(p => p.vehicle === filters.routeVehicle || p.vehicle === rvName);
+        // filters.routeVehicle тепер зберігає sheetName маршруту
+        const routeName = filters.routeVehicle;
+        data = data.filter(p => p._routeSheet === routeName || p._vehicleName === routeName);
     }
     if (filters.search && filters.search.trim()) { 
         const s = filters.search.trim().toLowerCase();
@@ -3895,10 +3891,7 @@ function updatePcVehiclesList() {
 
 // ROUTES LIST - оновлюємо з реальними даними з таблиці
 function updateRoutesList() {
-    // Спочатку показуємо з локальними даними
-    renderRoutesListLocal();
-
-    // Один API виклик для всіх маршрутів замість N окремих
+    // Завантажуємо актуальні маршрути з сервера і перемальовуємо
     fetch(ROUTE_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
@@ -3907,39 +3900,11 @@ function updateRoutesList() {
     .then(r => r.json())
     .then(data => {
         if (data.success && data.routes) {
-            let totalCount = 0;
-
-            for (const route of data.routes) {
-                const count = route.count || 0;
-                totalCount += count;
-
-                // Знаходимо відповідне авто по routeSheet (точне порівняння)
-                const matchedVehicle = vehicles.find(v => {
-                    return v.routeSheet === route.name || v.name === route.name;
-                });
-
-                if (matchedVehicle) {
-                    const vid = matchedVehicle.id;
-
-                    // Desktop dropdown badge
-                    const desktopBadge = document.querySelector(`#routesList [data-vehicle="${vid}"] .badge`);
-                    if (desktopBadge) {
-                        desktopBadge.textContent = count;
-                        desktopBadge.style.background = count > 0 ? 'var(--success)' : 'var(--border)';
-                        desktopBadge.style.color = count > 0 ? 'white' : 'var(--text-secondary)';
-                    }
-
-                    // Mobile menu badge
-                    const mobileBadge = document.querySelector(`#mobileRoutesList [data-vehicle="${vid}"] .side-menu-item-count`);
-                    if (mobileBadge) mobileBadge.textContent = count;
-
-                    // PC sidebar badge
-                    const pcBadge = document.querySelector(`#pcRoutesList [data-vehicle="${vid}"] .item-count`);
-                    if (pcBadge) pcBadge.textContent = count;
-                }
-            }
+            window._serverRoutes = data.routes.filter(r => isRouteSheet(r.name));
+            renderRoutesListLocal();
 
             // Оновлюємо загальний лічильник "Всі маршрути"
+            const totalCount = data.routes.filter(r => isRouteSheet(r.name)).reduce((sum, r) => sum + (r.count || 0), 0);
             const countRoute = document.getElementById('countRoute');
             const pcCount = document.getElementById('pcCountRoute');
             const mobileCount = document.getElementById('mobileCountRoute');
@@ -3948,16 +3913,29 @@ function updateRoutesList() {
             if (mobileCount) mobileCount.textContent = totalCount;
         }
     })
-    .catch(() => {});
+    .catch(() => {
+        // Fallback — показуємо з локальних даних
+        renderRoutesListLocal();
+    });
 }
 
-// Рендер списку маршрутів з локальними даними (швидко)
+// Рендер списку маршрутів — бере дані з серверних маршрутів, НЕ з vehicles
 function renderRoutesListLocal() {
-    const routesHtml = vehicles.map(v => {
-        const count = packages.filter(p => (p.vehicle === v.id || p.vehicle === v.name) && p.status === 'route').length;
-        const routeLabel = v.routeSheet || v.name;
-        return `<div class="dropdown-item" data-vehicle="${v.id}" onclick="showVehicleRoute('${v.id}')" style="color:#f97316;">
-            <span>🚐 ${routeLabel}</span>
+    // Використовуємо серверні маршрути або fallback на vehicles.routeSheet
+    const routes = (window._serverRoutes || []).filter(r => isRouteSheet(r.name));
+    if (!routes.length) {
+        // fallback: беремо routeSheet з vehicles
+        vehicles.forEach(v => {
+            if (v.routeSheet && !routes.find(r => r.name === v.routeSheet)) {
+                routes.push({ name: v.routeSheet, count: 0 });
+            }
+        });
+    }
+
+    const routesHtml = routes.map(r => {
+        const count = r.count || 0;
+        return `<div class="dropdown-item" onclick="showRoute('${r.name.replace(/'/g, "\\'")}')" style="color:#f97316;">
+            <span>🚀 ${r.name}</span>
             <span class="badge" style="background:${count > 0 ? 'var(--success)' : 'var(--border)'};color:${count > 0 ? 'white' : 'var(--text-secondary)'}">${count}</span>
         </div>`;
     }).join('');
@@ -3966,11 +3944,11 @@ function renderRoutesListLocal() {
     if (routesList) routesList.innerHTML = routesHtml;
 
     // Mobile routes
-    const mobileRoutesHtml = vehicles.map(v => {
-        const count = packages.filter(p => (p.vehicle === v.id || p.vehicle === v.name) && p.status === 'route').length;
-        const routeLabel = v.routeSheet || v.name;
-        return `<div class="side-menu-item route ${filters.routeVehicle === v.id ? 'active' : ''}" data-vehicle="${v.id}" onclick="showVehicleRoute('${v.id}'); closeSideMenu();" style="color:#f97316;">
-            <span class="side-menu-item-left">🚐 ${routeLabel}</span>
+    const mobileRoutesHtml = routes.map(r => {
+        const count = r.count || 0;
+        const isActive = filters.routeVehicle === r.name;
+        return `<div class="side-menu-item route ${isActive ? 'active' : ''}" onclick="showRoute('${r.name.replace(/'/g, "\\'")}'); closeSideMenu();" style="color:#f97316;">
+            <span class="side-menu-item-left">🚀 ${r.name}</span>
             <span class="side-menu-item-count">${count}</span>
         </div>`;
     }).join('');
@@ -3979,19 +3957,17 @@ function renderRoutesListLocal() {
     if (mobileRoutesList) mobileRoutesList.innerHTML = mobileRoutesHtml;
 
     // PC Sidebar routes
-    const pcRoutesHtml = vehicles.map(v => {
-        const count = packages.filter(p => (p.vehicle === v.id || p.vehicle === v.name) && p.status === 'route').length;
-        const routeLabel = v.routeSheet || v.name;
-        const isActive = filters.routeVehicle === v.id;
-        return `<div class="pc-sidebar-item route ${isActive ? 'active' : ''}" data-vehicle="${v.id}" onclick="showVehicleRoute('${v.id}')" style="color:#f97316;">
-            <span><span class="item-icon">🚐</span>${routeLabel}</span>
+    const pcRoutesHtml = routes.map(r => {
+        const count = r.count || 0;
+        const isActive = filters.routeVehicle === r.name;
+        return `<div class="pc-sidebar-item route ${isActive ? 'active' : ''}" onclick="showRoute('${r.name.replace(/'/g, "\\'")}')" style="color:#f97316;">
+            <span><span class="item-icon">🚀</span>${r.name}</span>
             <span class="item-count">${count}</span>
         </div>`;
     }).join('');
 
     const pcRoutesList = document.getElementById('pcRoutesList');
     if (pcRoutesList) pcRoutesList.innerHTML = pcRoutesHtml;
-    
 }
 
 // Оновлення лічильника "Всі маршрути" через API
@@ -4047,17 +4023,23 @@ function computeRouteStats(items) {
 }
 
 function showVehicleRoute(vehicleId) {
+    // Backward compat: якщо передали vehicleId — конвертуємо в sheetName
     const v = vehicles.find(x => x.id === vehicleId);
-    if (!v) return showToast('❌ Авто не знайдено');
-    
+    const sheetName = v ? (v.routeSheet || v.name) : vehicleId;
+    showRoute(sheetName);
+}
+
+function showRoute(sheetName) {
+    if (!sheetName) return;
+
     filters.statusFilter = 'route';
-    filters.routeVehicle = vehicleId;
+    filters.routeVehicle = sheetName; // тепер зберігаємо sheetName замість vehicleId
     filters.showArchive = false;
     document.getElementById('routeDropdown')?.classList.remove('show');
     closeSideMenu();
-    
-    showLoader(`Завантаження: ${v.name}`, '');
-    
+
+    showLoader(`Завантаження: ${sheetName}`, '');
+
     // Завантажуємо дані з таблиці маршрутів + статус розсилки
     Promise.all([
         fetch(ROUTE_API_URL, {
@@ -4066,7 +4048,7 @@ function showVehicleRoute(vehicleId) {
             body: JSON.stringify({
                 action: 'getRoutePassengers',
                 companyId: getCompanyId(),
-                payload: { sheetName: v.routeSheet || v.name }
+                payload: { sheetName: sheetName }
             })
         }).then(r => r.json()),
         fetch(ROUTE_API_URL, {
@@ -4077,29 +4059,29 @@ function showVehicleRoute(vehicleId) {
     ])
     .then(([routeData, mailingData]) => {
         hideLoader();
-        
+
         // Зберігаємо mailingIds
         if (mailingData.success) {
             mailingIds = mailingData.mailingIds || [];
         }
-        
+
         if (routeData.success) {
-            // Зберігаємо дані маршруту (API повертає passengers або packages)
             const items = routeData.passengers || routeData.packages || [];
             routePassengers = items.map((p, idx) => ({
                 ...p,
-                _uid: `route_${v.id}_${idx}`,
+                _uid: `route_${sheetName.replace(/\s+/g,'_')}_${idx}`,
                 _isRouteData: true,
-                _vehicleId: v.id,
-                _vehicleName: v.name
+                _routeSheet: sheetName,
+                _vehicleId: null,
+                _vehicleName: null
             }));
             routeStats = routeData.stats || computeRouteStats(routePassengers);
-            currentRouteVehicle = v;
-            
+            currentRouteVehicle = { routeSheet: sheetName, name: sheetName };
+
             // Рендеримо
             renderRoutePassengers();
             updateFilterButtons();
-            showToast(`🚐 ${v.name}: ${routeStats.total} пасажирів`);
+            showToast(`🚀 ${sheetName}: ${routeStats.total} пасажирів`);
         } else {
             showToast('❌ ' + routeData.error);
         }
@@ -4171,17 +4153,13 @@ async function loadAllRoutePassengers() {
                 
                 const items = data.success ? (data.passengers || data.packages || []) : [];
                 if (items.length > 0) {
-                    // Знаходимо відповідне авто по routeSheet (точне порівняння)
-                    const matchedVehicle = vehicles.find(v => {
-                        return v.routeSheet === route.name || v.name === route.name;
-                    });
-
                     const mapped = items.map((p, idx) => ({
                         ...p,
                         _uid: `route_${route.name.replace(/\s+/g, '_')}_${idx}`,
                         _isRouteData: true,
-                        _vehicleId: matchedVehicle?.id || route.vehicle || route.name,
-                        _vehicleName: route.vehicle || route.name
+                        _routeSheet: route.name,
+                        _vehicleId: null,
+                        _vehicleName: null
                     }));
                     routePassengers = routePassengers.concat(mapped);
 
@@ -4340,7 +4318,7 @@ function renderRoutePassengers() {
         const sel = selectedIds.has(uk);
         const dOpen = openDetailsId === uk;
         const aOpen = openActionsId === uk;
-        const veh = vehicles.find(v => v.id === p._vehicleId || v.name === p._vehicleName);
+        const routeSheet = p._routeSheet || p._vehicleName || '—';
         const isCodeDir = p.direction === 'ua-eu' || p.direction === 'eu-ua';
         const dirLabel = isCodeDir ? (p.direction === 'ua-eu' ? 'UA→EU' : 'EU→UA') : (p.direction || '—');
         const dirClass = p.direction === 'eu-ua' ? ' eu-ua' : '';
@@ -4366,10 +4344,8 @@ function renderRoutePassengers() {
         const payStatusBadge = p.payStatus ? `<span class="card-pay-badge ${payStatusClass||'neutral'}">${p.payStatus}</span>` : '';
         const paymentBadge = p.payment ? `<span class="card-pay-badge neutral">${p.payment}</span>` : '';
 
-        // Vehicle badge (route view - display only)
-        const vehicleBadge = veh
-            ? `<span class="card-vehicle-badge" style="cursor:default;">${veh.name}</span>`
-            : `<span class="card-vehicle-badge" style="cursor:default;">${p._vehicleName || '—'}</span>`;
+        // Route badge (route view - display only)
+        const vehicleBadge = `<span class="card-vehicle-badge" style="cursor:default;">${routeSheet}</span>`;
 
         // Driver status badge (compact for right panel)
         let driverStatusBadge = '<span class="status-badge pending" style="font-size:10px;padding:2px 5px;">⏳</span>';
@@ -4382,7 +4358,7 @@ function renderRoutePassengers() {
         const notifyIcon = isNotified ? '<span style="color:#f97316;font-size:11px;" title="Сповіщено">🔔</span>' : '';
 
         // Inline edit fields for details panel
-        const vehOpts = vehicles.map(v => `<option value="${esc(v.name)}" ${(p._vehicleId===v.id||p._vehicleName===v.name)?'selected':''}>${v.name}</option>`).join('');
+        const vehOpts = vehicles.map(v => `<option value="${esc(v.name)}" ${p.vehicle===v.name?'selected':''}>${v.name}</option>`).join('');
         const payStatuses = ['Оплачено','Неоплачено','Відправник','Отримувач'];
         const payments = ['При отр гот','При отр на карту','Відпр на карту','Картка','Готівка'];
         const parcelStatuses = ['Невідомий','Зареєстровано','Оформлено','Кордон','Доставка'];
@@ -4534,7 +4510,7 @@ function deleteFromRouteOnly(uid) {
     const p = routePassengers.find(rp => rp._uid === uid);
     if (!p) return;
 
-    const sheetName = currentRouteVehicle?.routeSheet || p._vehicleName;
+    const sheetName = p._routeSheet || currentRouteVehicle?.routeSheet || p._vehicleName;
     if (!sheetName) return showToast('Невідомий аркуш маршруту');
 
     showLoader('Видаляю з маршруту...', '');
@@ -4582,7 +4558,7 @@ function deleteFromRouteAndTrash(uid) {
     const p = routePassengers.find(rp => rp._uid === uid);
     if (!p) return;
 
-    const sheetName = currentRouteVehicle?.routeSheet || p._vehicleName;
+    const sheetName = p._routeSheet || currentRouteVehicle?.routeSheet || p._vehicleName;
     if (!sheetName) return showToast('Невідомий аркуш маршруту');
 
     showLoader('Видаляю...', '');
