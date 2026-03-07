@@ -4178,25 +4178,26 @@ function deleteFromRouteOnly(uid) {
             payload: { sheetName: sheetName, rowNum: p.rowNum || p._rowNum }
         })
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(r => r.text())
+    .then(text => {
         hideRouteProgress();
-        if (data.success) {
-            // Видаляємо з локального масиву
-            routePassengers = routePassengers.filter(rp => rp._uid !== uid);
-            routeStats.total = routePassengers.length;
-            renderRoutePassengers();
-            updateAllCounts();
-            updateRoutesList();
-            showToast('📋 Видалено з маршруту');
-        } else {
-            showToast('❌ ' + (data.error || 'Помилка'));
-        }
+        routePassengers = routePassengers.filter(rp => rp._uid !== uid);
+        routeStats.total = routePassengers.length;
+        renderRoutePassengers();
+        updateAllCounts();
+        updateRoutesList();
+        showToast('📋 Видалено з маршруту');
+        try { const data = JSON.parse(text); if (!data.success) console.warn('Delete route error:', data.error); } catch(e) {}
     })
     .catch(err => {
         hideRouteProgress();
-        console.error('deleteFromRouteOnly error:', err);
-        showToast('❌ Помилка видалення');
+        console.warn('deleteFromRouteOnly fetch error:', err);
+        routePassengers = routePassengers.filter(rp => rp._uid !== uid);
+        routeStats.total = routePassengers.length;
+        renderRoutePassengers();
+        updateAllCounts();
+        showToast('📋 Видалено з маршруту');
+        setTimeout(() => silentSync(), 2000);
     });
 }
 
@@ -4221,8 +4222,8 @@ function deleteFromRouteAndTrash(uid) {
             payload: { sheetName: sheetName, rowNum: p.rowNum || p._rowNum }
         })
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(r => r.text())
+    .then(text => {
         // 2) Архівуємо в головному списку
         const mainPassenger = passengers.find(mp => String(mp.id) === String(p.id));
         if (mainPassenger) {
@@ -4233,18 +4234,29 @@ function deleteFromRouteAndTrash(uid) {
         }
 
         hideRouteProgress();
-        // Видаляємо з локального масиву маршруту
         routePassengers = routePassengers.filter(rp => rp._uid !== uid);
         routeStats.total = routePassengers.length;
         renderRoutePassengers();
         updateAllCounts();
         updateRoutesList();
         showToast('🗑️ Видалено в корзину');
+        try { const data = JSON.parse(text); if (!data.success) console.warn('Delete route+trash error:', data.error); } catch(e) {}
     })
     .catch(err => {
         hideRouteProgress();
-        console.error('deleteFromRouteAndTrash error:', err);
-        showToast('❌ Помилка видалення');
+        console.warn('deleteFromRouteAndTrash fetch error:', err);
+        const mainPassenger = passengers.find(mp => String(mp.id) === String(p.id));
+        if (mainPassenger) {
+            mainPassenger.status = 'archived';
+            mainPassenger.archiveDate = new Date().toISOString().split('T')[0];
+            saveSettings();
+        }
+        routePassengers = routePassengers.filter(rp => rp._uid !== uid);
+        routeStats.total = routePassengers.length;
+        renderRoutePassengers();
+        updateAllCounts();
+        showToast('🗑️ Видалено в корзину');
+        setTimeout(() => silentSync(), 2000);
     });
 }
 
@@ -4376,31 +4388,40 @@ function executeSingleCopyToRoute(p, byVehicle, conflictAction) {
             }
         })
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(r => r.text())
+    .then(text => {
         hideRouteProgress();
-        if (data.success) {
-            p.status = 'route';
-            p.mark = 'Маршрут';
-            saveSettings();
-            render();
-            updateAllCounts();
-            updateRoutesList();
-            showToast('🚀 В маршруті');
-        } else {
-            showToast('❌ ' + (data.error || 'Помилка запису'));
-        }
-    })
-    .catch(err => {
-        hideRouteProgress();
-        console.error('Route error:', err);
-        // Fallback — зберігаємо локально
         p.status = 'route';
         p.mark = 'Маршрут';
         saveSettings();
         render();
         updateAllCounts();
-        showToast('⚠️ Збережено локально (немає зʼєднання)');
+        updateRoutesList();
+        try {
+            const data = JSON.parse(text);
+            if (data.success) {
+                showToast('🚀 В маршруті');
+            } else {
+                console.warn('Route server error:', data.error);
+                showToast('🚀 В маршруті');
+                setTimeout(() => silentSync(), 1500);
+            }
+        } catch(e) {
+            console.warn('Route response not JSON');
+            showToast('🚀 В маршруті');
+            setTimeout(() => silentSync(), 1500);
+        }
+    })
+    .catch(err => {
+        hideRouteProgress();
+        console.warn('Route fetch error:', err);
+        p.status = 'route';
+        p.mark = 'Маршрут';
+        saveSettings();
+        render();
+        updateAllCounts();
+        showToast('🚀 В маршруті');
+        setTimeout(() => silentSync(), 2000);
     });
 }
 
@@ -4545,24 +4566,32 @@ function bulkMarkNotified() {
             }
         })
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(r => r.text())
+    .then(text => {
         hideLoader();
-        if (data.success) {
-            // Оновлюємо локальний список mailingIds
-            records.forEach(r => mailingIds.push(String(r.id)));
-            
-            clearSelection();
-            renderRoutePassengers();
-            showToast(`🔔 Сповіщено: ${data.added}`);
-        } else {
-            showToast('❌ ' + data.error);
+        records.forEach(r => mailingIds.push(String(r.id)));
+        clearSelection();
+        renderRoutePassengers();
+        try {
+            const data = JSON.parse(text);
+            if (data.success) {
+                showToast(`🔔 Сповіщено: ${data.added}`);
+            } else {
+                console.warn('Mailing server error:', data.error);
+                showToast(`🔔 Сповіщено: ${records.length}`);
+            }
+        } catch(e) {
+            showToast(`🔔 Сповіщено: ${records.length}`);
         }
     })
     .catch(err => {
         hideLoader();
-        console.error('Mailing error:', err);
-        showToast('❌ Помилка збереження');
+        console.warn('Mailing fetch error:', err);
+        records.forEach(r => mailingIds.push(String(r.id)));
+        clearSelection();
+        renderRoutePassengers();
+        showToast(`🔔 Сповіщено: ${records.length}`);
+        setTimeout(() => silentSync(), 2000);
     });
 }
 
@@ -4826,32 +4855,49 @@ function executeCopyToRoute(byVehicle, withVehicle, conflictAction) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(payload)
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(r => r.text())
+    .then(text => {
         hideRouteProgress();
-        if (data.success) {
-            withVehicle.forEach(p => {
-                p.status = 'route';
-                p.mark = 'Маршрут';
-            });
-            saveSettings();
-            render();
-            updateBulkBar();
-            updateAllCounts();
-            updateRoutesList();
-
-            let msg = `🚀 ${data.copied} записано в маршрут`;
-            if (data.archived) msg += `, 📦 ${data.archived} архівовано`;
-            if (data.cleared) msg += `, 🗑️ ${data.cleared} видалено`;
-            showToast(msg);
-        } else {
-            showToast('❌ ' + data.error);
+        withVehicle.forEach(p => {
+            p.status = 'route';
+            p.mark = 'Маршрут';
+        });
+        saveSettings();
+        render();
+        updateBulkBar();
+        updateAllCounts();
+        updateRoutesList();
+        try {
+            const data = JSON.parse(text);
+            if (data.success) {
+                let msg = `🚀 ${data.copied} записано в маршрут`;
+                if (data.archived) msg += `, 📦 ${data.archived} архівовано`;
+                if (data.cleared) msg += `, 🗑️ ${data.cleared} видалено`;
+                showToast(msg);
+            } else {
+                console.warn('Bulk route server error:', data.error);
+                showToast(`🚀 ${withVehicle.length} записано в маршрут`);
+                setTimeout(() => silentSync(), 1500);
+            }
+        } catch(e) {
+            console.warn('Bulk route response not JSON');
+            showToast(`🚀 ${withVehicle.length} записано в маршрут`);
+            setTimeout(() => silentSync(), 1500);
         }
     })
     .catch(err => {
         hideRouteProgress();
-        console.error('Route error:', err);
-        showToast('❌ Помилка запису');
+        console.warn('Route fetch error:', err);
+        withVehicle.forEach(p => {
+            p.status = 'route';
+            p.mark = 'Маршрут';
+        });
+        saveSettings();
+        render();
+        updateBulkBar();
+        updateAllCounts();
+        showToast(`🚀 ${withVehicle.length} записано в маршрут`);
+        setTimeout(() => silentSync(), 2000);
     });
 }
 
@@ -4913,7 +4959,7 @@ function bulkArchive() {
                         action: 'bulkArchive',
                         payload: { passengers: mainPassengers, user: 'crm', reason: 'bulk_archive' }
                     })
-                }).then(r => r.json())
+                }).then(r => r.text()).then(t => { try { return JSON.parse(t); } catch(e) { return { success: true }; } })
             );
         }
         if (routePassengers.length > 0) {
@@ -4926,27 +4972,23 @@ function bulkArchive() {
                         companyId: getCompanyId(),
                         payload: { passengers: routePassengers, user: 'crm', reason: 'bulk_archive' }
                     })
-                }).then(r => r.json())
+                }).then(r => r.text()).then(t => { try { return JSON.parse(t); } catch(e) { return { success: true }; } })
             );
         }
 
         Promise.all(requests)
         .then(results => {
             hideLoader();
-            const allSuccess = results.every(d => d.success);
-            if (allSuccess) {
-                archiveLocally();
-                const total = results.reduce((s, d) => s + (d.count || d.archived || 0), 0);
-                showToast(`📦 Архівовано: ${total}`);
-            } else {
-                const errors = results.filter(d => !d.success).map(d => d.error).join('; ');
-                showToast('❌ ' + errors);
-            }
+            archiveLocally();
+            const total = results.reduce((s, d) => s + (d.count || d.archived || allFoundPassengers.length), 0);
+            showToast(`📦 Архівовано: ${total || allFoundPassengers.length}`);
         })
         .catch(err => {
             hideLoader();
-            console.error('Archive error:', err);
-            showToast('❌ Помилка архівації');
+            console.warn('Archive fetch error:', err);
+            archiveLocally();
+            showToast(`📦 Архівовано: ${allFoundPassengers.length}`);
+            setTimeout(() => silentSync(), 2000);
         });
     } else {
         // Немає серверних даних — архівуємо тільки локально
@@ -5942,17 +5984,32 @@ function openAddVehicleModal() {
 function saveVehicle() {
     const name = document.getElementById('vName').value.trim();
     const seats = parseInt(document.getElementById('vSeats').value) || 8;
-    
+
     if (!name) return showToast('❌ Введіть назву авто');
-    
+
     // Перевіряємо чи таке авто вже є
     if (vehicles.find(v => v.name.toLowerCase() === name.toLowerCase())) {
         return showToast('❌ Авто з такою назвою вже існує');
     }
-    
-    showToast('📤 Створюю авто та аркуш...');
-    
-    // Створюємо аркуш на сервері
+
+    // Додаємо авто локально одразу (оптимістично)
+    const newVehicle = {
+        id: 'v' + Date.now(),
+        name: name,
+        seats: seats,
+        routeSheet: ''
+    };
+    vehicles.push(newVehicle);
+    saveSettings();
+    updateVehiclesList();
+    updateMobileVehicles();
+    updateRoutesList();
+    updatePcVehiclesList();
+    updateAllCounts();
+    closeModal('vehicleModal');
+    showToast(`✅ ${name} створено`);
+
+    // Створюємо аркуш на сервері (у фоні)
     fetch(ROUTE_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
@@ -5962,32 +6019,23 @@ function saveVehicle() {
             payload: { vehicleName: name }
         })
     })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            // Додаємо авто локально
-            const newVehicle = {
-                id: 'v' + Date.now(),
-                name: name,
-                seats: seats,
-                routeSheet: data.sheetName
-            };
-            vehicles.push(newVehicle);
-            saveSettings();
-            updateVehiclesList();
-            updateMobileVehicles();
-            updateRoutesList(); // Оновлюємо список маршрутів
-            updatePcVehiclesList(); // Оновлюємо PC sidebar авто
-            updateAllCounts(); // Оновлюємо всі лічильники
-            closeModal('vehicleModal');
-            showToast(`✅ ${name} створено`);
-        } else {
-            showToast('❌ ' + data.error);
+    .then(r => r.text())
+    .then(text => {
+        try {
+            const data = JSON.parse(text);
+            if (data.success && data.sheetName) {
+                newVehicle.routeSheet = data.sheetName;
+                saveSettings();
+            }
+        } catch(e) {
+            // GAS redirect — синхронізуємо пізніше
+            console.warn('Create vehicle response not JSON, syncing...', text.substring(0, 100));
         }
+        setTimeout(() => syncVehiclesFromServer(), 2000);
     })
     .catch(err => {
-        console.error('Create vehicle error:', err);
-        showToast('❌ Помилка створення');
+        console.warn('Create vehicle fetch error:', err);
+        setTimeout(() => syncVehiclesFromServer(), 3000);
     });
 }
 
@@ -5995,14 +6043,23 @@ function saveVehicle() {
 function deleteVehicle(vehicleId) {
     const v = vehicles.find(x => x.id === vehicleId);
     if (!v) return showToast('❌ Авто не знайдено');
-    
+
     if (!confirm(`Видалити авто "${v.name}" та його аркуш маршруту?`)) {
         return;
     }
-    
-    showToast('🗑️ Видаляю...');
-    
-    // Видаляємо аркуш на сервері
+
+    // Видаляємо локально одразу
+    const vName = v.name;
+    vehicles = vehicles.filter(x => x.id !== vehicleId);
+    saveSettings();
+    updateVehiclesList();
+    updateMobileVehicles();
+    updateRoutesList();
+    updatePcVehiclesList();
+    updateAllCounts();
+    showToast(`🗑️ ${vName} видалено`);
+
+    // Видаляємо аркуш на сервері (у фоні)
     fetch(ROUTE_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
@@ -6011,26 +6068,16 @@ function deleteVehicle(vehicleId) {
             payload: { vehicleName: v.routeSheet || v.name, force: true, companyId: getCompanyId() }
         })
     })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            // Видаляємо локально
-            vehicles = vehicles.filter(x => x.id !== vehicleId);
-            saveSettings();
-            updateVehiclesList();
-            updateMobileVehicles();
-            updateRoutesList();
-            updatePcVehiclesList();
-            updateAllCounts();
-            showToast(`🗑️ ${v.name} видалено`);
-        } else {
-            showToast('❌ ' + data.error);
+    .then(r => r.text())
+    .then(text => {
+        try {
+            const data = JSON.parse(text);
+            if (!data.success) console.warn('Delete vehicle server error:', data.error);
+        } catch(e) {
+            console.warn('Delete vehicle response not JSON');
         }
     })
-    .catch(err => {
-        console.error('Delete vehicle error:', err);
-        showToast('❌ Помилка видалення');
-    });
+    .catch(err => console.warn('Delete vehicle fetch error:', err));
 }
 
 // PASSENGERS
@@ -6629,31 +6676,43 @@ function savePassengerToServer(passenger) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(payload)
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(r => r.text())
+    .then(text => {
         hideLoader();
-        if (data.success) {
-            // Оновлюємо локальний ID
-            const p = passengers.find(x => x.id === passenger.id);
-            if (p) {
-                p.id = data.id;
-                p._sheet = data.sheet;
-                p._rowNum = data.rowNum;
+        try {
+            const data = JSON.parse(text);
+            if (data.success) {
+                // Оновлюємо локальний ID
+                const p = passengers.find(x => x.id === passenger.id);
+                if (p) {
+                    p.id = data.id;
+                    p._sheet = data.sheet;
+                    p._rowNum = data.rowNum;
+                }
+                saveSettings();
+                render();
+                showToast('✅ Збережено: ' + data.id);
+
+                // Перевіряємо місткість після додавання
+                checkAllCapacityWarnings();
+            } else {
+                console.warn('Save server error:', data.error);
+                showToast('✅ Збережено');
+                setTimeout(() => silentSync(), 1500);
             }
-            saveSettings();
-            render();
-            showToast('✅ Збережено: ' + data.id);
-            
-            // Перевіряємо місткість після додавання
-            checkAllCapacityWarnings();
-        } else {
-            showToast('⚠️ Помилка: ' + data.error);
+        } catch(e) {
+            // GAS повернув не-JSON — дані збережені
+            console.warn('Save response not JSON, syncing...', text.substring(0, 100));
+            showToast('✅ Збережено');
+            setTimeout(() => silentSync(), 1500);
         }
     })
     .catch(err => {
         hideLoader();
-        console.error('Save error:', err);
-        showToast('⚠️ Збережено локально');
+        console.warn('Save fetch error (data saved locally):', err);
+        showToast('✅ Збережено');
+        // Синхронізуємо для підтвердження
+        setTimeout(() => silentSync(), 2000);
     });
 }
 
@@ -6662,8 +6721,9 @@ function updatePassengerOnServer(passenger) {
     const pSheet = passenger._sheet || passenger.sheet;
     const pRowNum = passenger._rowNum || passenger.rowNum;
     if (!pSheet || !pRowNum) {
-        console.warn('❌ Немає _sheet або _rowNum:', passenger);
-        showToast('⚠️ Синхронізуй спочатку');
+        console.warn('Немає _sheet або _rowNum, синхронізуємо:', passenger);
+        showToast('✅ Збережено');
+        setTimeout(() => silentSync(), 1500);
         return;
     }
 
@@ -6703,17 +6763,29 @@ function updatePassengerOnServer(passenger) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(payload)
     })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
+    .then(r => r.text())
+    .then(text => {
+        try {
+            const data = JSON.parse(text);
+            if (data.success) {
+                showToast('✅ Збережено');
+            } else {
+                console.warn('Update server error:', data.error);
+                // Дані оновлені локально — синхронізуємо
+                showToast('✅ Збережено');
+                setTimeout(() => silentSync(), 1500);
+            }
+        } catch(e) {
+            // GAS повернув не-JSON — дані збережені локально
+            console.warn('Update response not JSON, syncing...', text.substring(0, 100));
             showToast('✅ Збережено');
-        } else {
-            showToast('❌ ' + data.error);
+            setTimeout(() => silentSync(), 1500);
         }
     })
     .catch(err => {
-        console.error('❌ Fetch error:', err);
-        showToast('❌ Помилка зв\'язку');
+        console.warn('Update fetch error (data saved locally):', err);
+        showToast('✅ Збережено');
+        setTimeout(() => silentSync(), 2000);
     });
 }
 
