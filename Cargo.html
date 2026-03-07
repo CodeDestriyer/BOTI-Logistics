@@ -2281,17 +2281,15 @@ const ALL_COLUMNS = {
     payment:{label:'Оплата',group:'row3'},
     note:{label:'Примітка',group:'row3'},
     address:{label:'Адреса отримувача',group:'row4'},
-    number:{label:'Номер №',group:'row4'},
     phoneReg:{label:'Тел. реєстратора',group:'details'},
     parcelStatus:{label:'Статус посилки',group:'details'},
     name:{label:'ПІБ',group:'details'},
-    vo:{label:'ВО',group:'details'},
     smsNote:{label:'Примітка СМС',group:'details'},
     photo:{label:'Фото',group:'details'},
     timing:{label:'Таймінг',group:'details'}
 };
 
-let colSettings = {header:['ttn','weight','dateReg','phone','vehicle','amount','dateReceive','id','payStatus','payment','note','address','number'],details:['phoneReg','parcelStatus','name','vo','smsNote','photo','timing']};
+let colSettings = {header:['ttn','weight','dateReg','phone','vehicle','amount','dateReceive','id','payStatus','payment','note','address'],details:['phoneReg','parcelStatus','name','smsNote','photo','timing']};
 let packages = [];
 
 const DEFAULT_VEHICLES = [
@@ -2425,8 +2423,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     phone: p.phone || '',
                     phoneReg: p.phoneReg || '',
                     address: p.address || '',
-                    vo: p.vo || '',
-                    number: p.number || '',
                     ttn: p.ttn || '',
                     weight: p.weight || '',
                     amount: p.amount || '',
@@ -2440,7 +2436,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     smsNote: p.smsNote || '',
                     photo: p.photo || '',
                     note: p.note || '',
-                    direction: p.direction,
+                    direction: p.direction || 'ua-eu',
                     status: normalizedStatus,
                     statusDate: p.dateArchive || '',
                     isNew: p.isNew,
@@ -2520,8 +2516,6 @@ function silentSync() {
                     phone: p.phone || '',
                     phoneReg: p.phoneReg || '',
                     address: p.address || '',
-                    vo: p.vo || '',
-                    number: p.number || '',
                     ttn: p.ttn || '',
                     weight: p.weight || '',
                     amount: p.amount || '',
@@ -2535,7 +2529,7 @@ function silentSync() {
                     smsNote: p.smsNote || '',
                     photo: p.photo || '',
                     note: p.note || '',
-                    direction: p.direction,
+                    direction: p.direction || 'ua-eu',
                     status: normalizedStatus,
                     statusDate: p.dateArchive || '',
                     isNew: p.isNew,
@@ -2668,7 +2662,7 @@ async function retryOfflineBuffer() {
                 action: 'addPackage',
                 companyId: getCompanyId(),
                 fields: {
-                    direction: pkg.direction, vo: pkg.vo || '', number: pkg.number || '',
+                    direction: pkg.direction || 'ua-eu',
                     ttn: pkg.ttn || '', weight: pkg.weight || '', address: pkg.address || '',
                     phone: pkg.phone || '', amount: pkg.amount || '', payStatus: pkg.payStatus || '',
                     payment: pkg.payment || '', phoneReg: pkg.phoneReg || '', note: pkg.note || '',
@@ -7756,12 +7750,9 @@ function syncWithSheets() {
             const serverPkgs = data.packages.map(p => {
                 const sp = {
                     id: p.id || 'srv_' + p.rowNum,
-                    vo: p.vo || '',
-                    number: p.number || '',
                     ttn: p.ttn || '',
                     weight: p.weight || '',
                     address: p.address || '',
-                    directionRaw: p.directionRaw || '',
                     direction: p.direction || 'ua-eu',
                     phone: p.phone || '',
                     amount: p.amount || '',
@@ -7818,9 +7809,7 @@ function savePackageToServer(pkg) {
         action: 'addPackage',
         companyId: getCompanyId(),
         fields: {
-            direction: pkg.direction,
-            vo: pkg.vo || '',
-            number: pkg.number || '',
+            direction: pkg.direction || 'ua-eu',
             ttn: pkg.ttn || '',
             weight: pkg.weight || '',
             address: pkg.address || '',
@@ -7894,8 +7883,7 @@ function updatePackageOnServer(pkg) {
     const apiUrl = isRoute ? ROUTE_API_URL : API_URL;
 
     const fields = {
-        vo: pkg.vo || '',
-        number: pkg.number || '',
+        direction: pkg.direction || 'ua-eu',
         ttn: pkg.ttn || '',
         weight: pkg.weight || '',
         address: pkg.address || '',
