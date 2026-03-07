@@ -241,6 +241,10 @@ function getAllPackages(companyId) {
     var crmStatus = String(row[COL.STATUS] || '').toLowerCase().trim();
     var direction = normalizeDirection(row[COL.DIRECTION]);
 
+    // Визначаємо archiveType зі статусу (refused/deleted/transferred → archiveType)
+    var isArchivedStatus = ARCHIVE_STATUSES.indexOf(crmStatus) !== -1;
+    var archiveType = isArchivedStatus ? (crmStatus === 'archived' ? 'archived' : crmStatus) : '';
+
     allPackages.push({
       id: String(row[COL.ID] || ''),
       rowNum: rowNum,
@@ -264,12 +268,13 @@ function getAllPackages(companyId) {
       dateReceive: formatDate(row[COL.DATE_RECEIVE]),
       photo: String(row[COL.PHOTO] || ''),
       status: crmStatus,
+      archiveType: archiveType,
       dateArchive: formatDate(row[COL.DATE_ARCHIVE]),
       archiveId: String(row[COL.ARCHIVE_ID] || ''),
       vehicle: String(row[COL.VEHICLE] || ''),
 
       isNew: isNew24h,
-      isArchived: ARCHIVE_STATUSES.indexOf(crmStatus) !== -1
+      isArchived: isArchivedStatus
     });
   }
 
@@ -692,7 +697,9 @@ function archivePackage(data) {
   var archiveId = generateArchiveId_();
 
   // In-place: оновлюємо 3 колонки в тій самій таблиці
-  sheet.getRange(rowNum, COL.STATUS + 1).setValue('archived');
+  // Зберігаємо конкретний тип архівації (refused/deleted/transferred/archived)
+  var archiveStatus = (reason && ARCHIVE_STATUSES.indexOf(reason) !== -1) ? reason : 'archived';
+  sheet.getRange(rowNum, COL.STATUS + 1).setValue(archiveStatus);
   sheet.getRange(rowNum, COL.DATE_ARCHIVE + 1).setValue(dateNow);
   sheet.getRange(rowNum, COL.ARCHIVE_ID + 1).setValue(archiveId);
 

@@ -2287,6 +2287,11 @@ document.addEventListener('DOMContentLoaded', () => {
             passengers = data.passengers.map(p => {
                 let normalizedStatus = (p.status || '').toString().toLowerCase().trim();
                 if (!normalizedStatus) normalizedStatus = 'new';
+                // Визначаємо archiveType і нормалізуємо статус
+                const archiveStatuses = ['archived', 'refused', 'deleted', 'transferred'];
+                const isArchiveStatus = archiveStatuses.includes(normalizedStatus);
+                const archiveType = p.archiveType || (isArchiveStatus ? normalizedStatus : '');
+                if (isArchiveStatus) normalizedStatus = 'archived';
                 return {
                     id: p.id || 'srv_' + p.rowNum,
                     date: normalizeDate(p.date),
@@ -2307,6 +2312,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     note: p.note || '',
                     direction: p.direction,
                     status: normalizedStatus,
+                    archiveType: archiveType,
                     statusDate: p.statusDate || '',
                     isNew: p.isNew,
                     isNew24h: p.isNew,
@@ -2369,7 +2375,11 @@ function silentSync() {
                 // Нормалізуємо статус (lowercase, trim)
                 let normalizedStatus = (p.status || '').toString().toLowerCase().trim();
                 if (!normalizedStatus) normalizedStatus = 'new';
-                
+                // Визначаємо archiveType і нормалізуємо статус
+                const archiveStatuses = ['archived', 'refused', 'deleted', 'transferred'];
+                const isArchiveStatus = archiveStatuses.includes(normalizedStatus);
+                const archiveType = p.archiveType || (isArchiveStatus ? normalizedStatus : '');
+                if (isArchiveStatus) normalizedStatus = 'archived';
                 return {
                     id: p.id || 'srv_' + p.rowNum,
                     date: normalizeDate(p.date),
@@ -2390,6 +2400,7 @@ function silentSync() {
                     note: p.note || '',
                     direction: p.direction,
                     status: normalizedStatus,
+                    archiveType: archiveType,
                     statusDate: p.statusDate || '',
                     isNew: p.isNew,
                     isNew24h: p.isNew,
@@ -2397,7 +2408,7 @@ function silentSync() {
                     _rowNum: p.rowNum
                 };
             });
-            
+
             // Перевіряємо чи є нові ліди
             const newCount = serverPassengers.filter(p => p.isNew && p.status !== 'archived').length;
             const oldNewCount = passengers.filter(p => p.isNew && p.status !== 'archived').length;
@@ -6056,8 +6067,8 @@ function confirmDeletePassenger(uid) {
         const isRoute = !!p._isRouteData;
         const apiUrl = isRoute ? ROUTE_API_URL : API_URL;
         const body = isRoute
-            ? { action: 'archivePassengers', companyId: getCompanyId(), payload: { passengers: [{ sheet: pSheet, rowNum: pRowNum }], user: 'crm', reason: 'manual_delete' } }
-            : { action: 'archivePassenger', payload: { sheet: pSheet, rowNum: pRowNum, user: 'crm', reason: 'manual_delete' } };
+            ? { action: 'archivePassengers', companyId: getCompanyId(), payload: { passengers: [{ sheet: pSheet, rowNum: pRowNum }], user: 'crm', reason: 'deleted' } }
+            : { action: 'archivePassenger', payload: { sheet: pSheet, rowNum: pRowNum, user: 'crm', reason: 'deleted' } };
 
         fetch(apiUrl, {
             method: 'POST',
@@ -6443,7 +6454,11 @@ function syncWithSheets() {
                 // Нормалізуємо статус (lowercase, trim)
                 let normalizedStatus = (p.status || '').toString().toLowerCase().trim();
                 if (!normalizedStatus) normalizedStatus = 'new';
-                
+                // Визначаємо archiveType і нормалізуємо статус
+                const archiveStatuses = ['archived', 'refused', 'deleted', 'transferred'];
+                const isArchiveStatus = archiveStatuses.includes(normalizedStatus);
+                const archiveType = p.archiveType || (isArchiveStatus ? normalizedStatus : '');
+                if (isArchiveStatus) normalizedStatus = 'archived';
                 return {
                     id: p.id || 'srv_' + p.rowNum,
                     date: normalizeDate(p.date),
@@ -6464,15 +6479,15 @@ function syncWithSheets() {
                     note: p.note || '',
                     direction: p.direction,
                     status: normalizedStatus,
+                    archiveType: archiveType,
                     statusDate: p.statusDate || '',
                     isNew: p.isNew,
-                    isNew24h: p.isNew, // Зберігаємо для фільтра "Нові" (не зникає при кліку)
-                    // Зберігаємо інфо для оновлення
+                    isNew24h: p.isNew,
                     _sheet: p.sheet,
                     _rowNum: p.rowNum
                 };
             });
-            
+
             // Мержимо з локальними — зберігаємо vehicle та CRM-only поля
             const localMapSync = {};
             passengers.forEach(p => {
@@ -6616,7 +6631,8 @@ function updatePassengerOnServer(passenger) {
             timing: passenger.timing,
             dateReg: passenger.dateReg,
             note: passenger.note,
-            status: passenger.status || '',
+            // Зберігаємо конкретний тип архівації в колонку STATUS
+            status: (passenger.status === 'archived' && passenger.archiveType) ? passenger.archiveType : (passenger.status || ''),
             statusDate: passenger.statusDate || ''
         }
     };

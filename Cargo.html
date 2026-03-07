@@ -2384,6 +2384,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.success && data.packages) {
             packages = data.packages.map(p => {
                 let normalizedStatus = (p.status || '').toString().toLowerCase().trim();
+                // Визначаємо archiveType і нормалізуємо статус
+                const archiveStatuses = ['archived', 'refused', 'deleted', 'transferred'];
+                const isArchiveStatus = archiveStatuses.includes(normalizedStatus);
+                const archiveType = p.archiveType || (isArchiveStatus ? normalizedStatus : '');
+                if (isArchiveStatus) normalizedStatus = 'archived';
                 return {
                     id: p.id || 'srv_' + p.rowNum,
                     name: p.name || '',
@@ -2405,6 +2410,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     note: p.note || '',
                     direction: p.direction || 'ua-eu',
                     status: normalizedStatus,
+                    archiveType: archiveType,
                     statusDate: p.dateArchive || '',
                     isNew: p.isNew,
                     isNew24h: p.isNew,
@@ -2476,7 +2482,11 @@ function silentSync() {
             const oldCount = packages.length;
             const serverPackages = data.packages.map(p => {
                 let normalizedStatus = (p.status || '').toString().toLowerCase().trim();
-
+                // Визначаємо archiveType і нормалізуємо статус
+                const archiveStatuses = ['archived', 'refused', 'deleted', 'transferred'];
+                const isArchiveStatus = archiveStatuses.includes(normalizedStatus);
+                const archiveType = p.archiveType || (isArchiveStatus ? normalizedStatus : '');
+                if (isArchiveStatus) normalizedStatus = 'archived';
                 return {
                     id: p.id || 'srv_' + p.rowNum,
                     name: p.name || '',
@@ -2498,6 +2508,7 @@ function silentSync() {
                     note: p.note || '',
                     direction: p.direction || 'ua-eu',
                     status: normalizedStatus,
+                    archiveType: archiveType,
                     statusDate: p.dateArchive || '',
                     isNew: p.isNew,
                     isNew24h: p.isNew,
@@ -4793,8 +4804,8 @@ function archivePackage(id) {
         const apiUrl = isRoute ? ROUTE_API_URL : API_URL;
         const action = isRoute ? 'archivePackages' : 'archivePackage';
         const body = isRoute
-            ? { action, companyId: getCompanyId(), packages: [{ sheet: pSheet, rowNum: pRowNum }], user: 'crm', reason: 'archive' }
-            : { action, companyId: getCompanyId(), sheet: pSheet, rowNum: pRowNum, user: 'crm', reason: 'archive' };
+            ? { action, companyId: getCompanyId(), packages: [{ sheet: pSheet, rowNum: pRowNum }], user: 'crm', reason: 'archived' }
+            : { action, companyId: getCompanyId(), sheet: pSheet, rowNum: pRowNum, user: 'crm', reason: 'archived' };
         fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body) }).catch(() => {});
     }
     saveSettings(); render(); updateAllCounts(); renderCalendars(); showToast('📦 В архіві');
@@ -6222,8 +6233,8 @@ function confirmDeletePassenger(uid) {
         const isRoute = !!p._isRouteData;
         const apiUrl = isRoute ? ROUTE_API_URL : API_URL;
         const body = isRoute
-            ? { action: 'archivePackages', companyId: getCompanyId(), packages: [{ sheet: pSheet, rowNum: pRowNum }], user: 'crm', reason: 'manual_delete' }
-            : { action: 'archivePackage', companyId: getCompanyId(), sheet: pSheet, rowNum: pRowNum, user: 'crm', reason: 'manual_delete' };
+            ? { action: 'archivePackages', companyId: getCompanyId(), packages: [{ sheet: pSheet, rowNum: pRowNum }], user: 'crm', reason: 'deleted' }
+            : { action: 'archivePackage', companyId: getCompanyId(), sheet: pSheet, rowNum: pRowNum, user: 'crm', reason: 'deleted' };
 
         fetch(apiUrl, {
             method: 'POST',
@@ -7829,14 +7840,14 @@ function updatePackageOnServer(pkg) {
         smsNote: pkg.smsNote || '',
         dateReceive: pkg.dateReceive || '',
         photo: pkg.photo || '',
-        status: pkg.status || '',
+        // Зберігаємо конкретний тип архівації в колонку STATUS
+        status: (pkg.status === 'archived' && pkg.archiveType) ? pkg.archiveType : (pkg.status || ''),
         vehicle: pkg.vehicle || ''
     };
     // Додаємо архівні поля якщо статус = archived
     if (pkg.status === 'archived') {
         fields.dateArchive = pkg.statusDate || pkg.archiveDate || new Date().toISOString().split('T')[0];
         fields.archivedBy = pkg.archivedBy || ('archived_' + getCompanyId());
-        fields.archiveReason = pkg.archiveType || 'archived';
     }
 
     const payload = {

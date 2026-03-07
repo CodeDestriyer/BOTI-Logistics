@@ -297,6 +297,10 @@ function getSheetPassengers(sheetName, direction, companyId) {
       var dateReg = formatDate(row[COL.DATE_REG]);
       var crmStatus = resolveStatus(row);
 
+      // Визначаємо archiveType зі статусу (refused/deleted/transferred → archiveType)
+      var isArchivedStatus = ARCHIVE_STATUSES.indexOf(crmStatus) !== -1;
+      var archiveType = isArchivedStatus ? (crmStatus === 'archived' ? 'archived' : crmStatus) : '';
+
       passengers.push({
         id: String(row[COL.ID] || ''),
         rowNum: i + 2,
@@ -320,11 +324,12 @@ function getSheetPassengers(sheetName, direction, companyId) {
         dateReg: dateReg,
         note: String(row[COL.NOTE] || ''),
         status: crmStatus,
+        archiveType: archiveType,
         dateArchive: formatDate(row[COL.DATE_ARCHIVE]),
         archiveId: String(row[COL.ARCHIVE_ID] || ''),
 
         isNew: isRecent(row[COL.DATE_REG] || row[COL.DATE], 24),
-        isArchived: ARCHIVE_STATUSES.indexOf(crmStatus) !== -1
+        isArchived: isArchivedStatus
       });
     }
 
@@ -775,7 +780,9 @@ function archivePassenger(payload) {
   }
 
   // === КРОК 2: Оновлюємо джерело (тільки після успішного запису) ===
-  sheet.getRange(rowNum, COL.STATUS + 1).setValue('archived');
+  // Зберігаємо конкретний тип архівації (refused/deleted/transferred/archived)
+  var archiveStatus = (reason && ARCHIVE_STATUSES.indexOf(reason) !== -1) ? reason : 'archived';
+  sheet.getRange(rowNum, COL.STATUS + 1).setValue(archiveStatus);
   sheet.getRange(rowNum, COL.DATE_ARCHIVE + 1).setValue(dateNow.substring(0, 10));
   sheet.getRange(rowNum, COL.ARCHIVE_ID + 1).setValue(archiveId);
 
