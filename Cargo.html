@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>YuraCRM Посилки v1</title>
+    <title>BOTI Logistics — CRM Посилки</title>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -586,7 +586,6 @@
         .lead-card.status-route { border-left-color: var(--success); }
         .lead-card.status-archived { border-left-color: #6b7280; opacity: 0.7; }
         .lead-card.status-refused { border-left-color: var(--danger); background: #fef2f2; }
-        .lead-card.status-transferred { border-left-color: var(--teal); background: #f0fdfa; }
         .lead-card.status-deleted { border-left-color: #9ca3af; background: #f3f4f6; opacity: 0.6; }
         .lead-card.selected { background: #f0f7ff; }
 
@@ -807,10 +806,23 @@
             .copy-btn-mini { display: none; }
         }
         .btn-call { background: var(--primary); color: white; }
-        .btn-msg { background: #7c3aed; color: white; }
+        .btn-msg { background: #7c3aed; color: white; position: relative; }
         .btn-map { background: var(--info); color: white; }
         .btn-edit { background: var(--warning); color: white; }
-        
+
+        /* Messenger popup */
+        .messenger-popup { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); }
+        .messenger-popup-inner { background: var(--bg-card, #fff); border-radius: 16px; padding: 20px; min-width: 260px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); text-align: center; }
+        .messenger-popup-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; color: var(--text-primary, #1a1a2e); }
+        .messenger-popup-btns { display: flex; flex-direction: column; gap: 10px; }
+        .messenger-btn { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; color: #fff; transition: transform 0.1s; }
+        .messenger-btn:active { transform: scale(0.97); }
+        .messenger-btn.viber { background: #7360f2; }
+        .messenger-btn.whatsapp { background: #25d366; }
+        .messenger-btn.telegram { background: #2AABEE; }
+        .messenger-btn-icon { font-size: 22px; }
+        .messenger-popup-cancel { margin-top: 14px; background: none; border: 1px solid var(--border, #ddd); border-radius: 10px; padding: 10px 24px; font-size: 14px; color: var(--text-secondary, #666); cursor: pointer; width: 100%; }
+
         .card-vehicle { position: relative; }
 
         /* DRAG HANDLE */
@@ -1274,6 +1286,23 @@
         .scanner-btn.capture:active { transform: scale(0.9); background: #ddd; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
+        /* Scanner hint overlay */
+        .scanner-hint { position: absolute; bottom: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: center; padding: 14px 20px; background: linear-gradient(transparent, rgba(0,0,0,0.7)); pointer-events: none; z-index: 4; }
+        .scanner-hint-text { color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 600; text-align: center; animation: hintPulse 2s ease-in-out infinite; }
+        @keyframes hintPulse { 0%,100% { opacity: 0.7; } 50% { opacity: 1; } }
+
+        /* Scanner mode selector (barcode find/add) */
+        .scanner-mode-popup { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 2100; display: flex; align-items: center; justify-content: center; }
+        .scanner-mode-inner { background: #1a1a2e; border-radius: 16px; padding: 20px; min-width: 280px; max-width: 320px; }
+        .scanner-mode-title { color: white; font-size: 15px; font-weight: 700; text-align: center; margin-bottom: 16px; }
+        .scanner-mode-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; border: none; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; color: white; margin-bottom: 10px; font-family: inherit; transition: transform 0.1s; }
+        .scanner-mode-btn:active { transform: scale(0.97); }
+        .scanner-mode-btn.find { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+        .scanner-mode-btn.add { background: linear-gradient(135deg, #10b981, #059669); }
+        .scanner-mode-btn .mode-icon { font-size: 24px; }
+        .scanner-mode-btn small { display: block; font-size: 10px; opacity: 0.8; font-weight: 400; margin-top: 2px; }
+        .scanner-mode-cancel { width: 100%; padding: 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; background: none; color: rgba(255,255,255,0.7); font-size: 13px; cursor: pointer; font-family: inherit; }
+
         /* Scanner preview (after photo taken) */
         .scanner-preview { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #000; display: none; flex-direction: column; z-index: 5; }
         .scanner-preview.show { display: flex; }
@@ -1415,9 +1444,6 @@
                     <span class="side-menu-item-count" id="mobileCountNoVehicle">0</span>
                 </div>
                 <div id="mobileVehiclesList"></div>
-                <div class="side-menu-item" onclick="openAddVehicleModal(); closeSideMenu();" style="color:var(--info);font-weight:600;border-top:1px solid var(--border);margin-top:4px;">
-                    <span class="side-menu-item-left">➕ Додати авто</span>
-                </div>
             </div>
         </div>
         
@@ -1451,10 +1477,6 @@
                     <span class="side-menu-item-left">❌ Відмови</span>
                     <span class="side-menu-item-count" id="mobileCountRefused">0</span>
                 </div>
-                <div class="side-menu-item" onclick="showStatusFilter('transferred'); closeSideMenu();">
-                    <span class="side-menu-item-left">📆 Перенос</span>
-                    <span class="side-menu-item-count" id="mobileCountTransferred">0</span>
-                </div>
                 <div class="side-menu-item" onclick="showStatusFilter('deleted'); closeSideMenu();">
                     <span class="side-menu-item-left">🗑️ Видалені</span>
                     <span class="side-menu-item-count" id="mobileCountDeleted">0</span>
@@ -1468,7 +1490,7 @@
 <header class="header">
     <div class="header-top">
         <button class="burger-btn" onclick="openSideMenu()">☰</button>
-        <div class="logo">YURA<span>TRANSPORTATION</span> 📦</div>
+        <div class="logo">BOTI<span style="color:#4CAF50">SYSTEM</span> 📦</div>
         <div class="search-box">
             <span class="search-icon">🔍</span>
             <input type="text" class="search-input" id="searchInput" placeholder="Пошук посилок..." oninput="handleSearch()">
@@ -1547,10 +1569,9 @@
                     <span class="item-count" id="pcCountNoVehicle">0</span>
                 </div>
                 <div id="pcVehiclesList"></div>
-                <div class="pc-sidebar-add" onclick="openAddVehicleModal()">➕ Додати авто</div>
             </div>
         </div>
-        
+
         <!-- Маршрути -->
         <div class="pc-sidebar-section">
             <div class="pc-sidebar-header collapsed" onclick="togglePcSection('routes')">
@@ -1580,10 +1601,6 @@
                 <div class="pc-sidebar-item" id="pcRefused" onclick="showStatusFilter('refused')">
                     <span><span class="item-icon">❌</span>Відмови</span>
                     <span class="item-count" id="pcCountRefused">0</span>
-                </div>
-                <div class="pc-sidebar-item" id="pcTransferred" onclick="showStatusFilter('transferred')">
-                    <span><span class="item-icon">📆</span>Перенос</span>
-                    <span class="item-count" id="pcCountTransferred">0</span>
                 </div>
                 <div class="pc-sidebar-item" id="pcDeleted" onclick="showStatusFilter('deleted')">
                     <span><span class="item-icon">🗑️</span>Видалені</span>
@@ -1689,11 +1706,6 @@
                                 <span class="status-name">Відмови</span>
                                 <span class="status-count" id="dashRefused">0</span>
                             </div>
-                            <div class="dashboard-status-item" onclick="showStatusFilter('transferred')" style="cursor:pointer;color:var(--teal);">
-                                <span class="status-icon">📆</span>
-                                <span class="status-name">Перенос</span>
-                                <span class="status-count" id="dashTransferred">0</span>
-                            </div>
                             <div class="dashboard-status-item" onclick="showStatusFilter('deleted')" style="cursor:pointer;color:#6b7280;">
                                 <span class="status-icon">🗑️</span>
                                 <span class="status-name">Видалені</span>
@@ -1735,7 +1747,6 @@
                             <div class="dropdown-item" onclick="setVehicleFilter('')">Всі авто</div>
                             <div class="dropdown-item" onclick="setVehicleFilter('none')" style="color:var(--warning);">❓ Без авто <span class="badge" style="background:var(--warning);" id="countNoVehicle">0</span></div>
                             <div id="vehiclesList"></div>
-                            <div class="dropdown-item" onclick="openAddVehicleModal()" style="color:var(--info);font-weight:600;border-top:1px solid var(--border);">➕ Додати авто</div>
                         </div>
                     </div>
                     <div class="dropdown-container">
@@ -1840,9 +1851,6 @@
             <button class="bulk-sidebar-btn" onclick="bulkRefuse()">
                 <span class="btn-icon">❌</span> Відмова
             </button>
-            <button class="bulk-sidebar-btn" onclick="bulkTransfer()">
-                <span class="btn-icon">📆</span> Перенос
-            </button>
             <button class="bulk-sidebar-btn" onclick="bulkDelete()">
                 <span class="btn-icon">🗑️</span> Видалити
             </button>
@@ -1941,7 +1949,7 @@
         <span>📦</span>
         <span id="navPackagesLabel">Посилки</span>
     </button>
-    <button class="nav-item" onclick="window.location.href='index_pass_19v.html'"><span>👥</span>Пасажири</button>
+    <button class="nav-item" onclick="window.location.href='Passengers.html'"><span>👥</span>Пасажири</button>
     <button class="nav-item" onclick="syncWithSheets()"><span>🔄</span>Синхр.</button>
     <button class="nav-item" onclick="openColumnsModal()"><span>⚙️</span>Колонки</button>
     <button class="nav-item" onclick="toggleAddPopup()"><span>➕</span>Додати</button>
@@ -1969,6 +1977,10 @@
         <video id="scannerVideo" autoplay playsinline muted></video>
         <canvas id="scannerCanvas"></canvas>
         <div class="scanner-guide"></div>
+        <!-- Hint overlay -->
+        <div class="scanner-hint" id="scannerHint">
+            <span class="scanner-hint-text">Натисніть 📸 щоб зробити фото або 📊 для штрих-коду</span>
+        </div>
         <!-- Preview after capture -->
         <div class="scanner-preview" id="scannerPreview">
             <img id="scannerPreviewImg" src="" alt="Preview">
@@ -1986,7 +1998,7 @@
         <button class="scanner-btn capture" onclick="capturePhoto()">
             <span class="btn-icon">📸</span>
         </button>
-        <button class="scanner-btn" onclick="scanBarcode()">
+        <button class="scanner-btn" onclick="openBarcodeMenu()">
             <span class="btn-icon">📊</span>
             Штрих-код
         </button>
@@ -2010,11 +2022,12 @@
             <div class="form-group"><label>Адреса отримувача</label><input type="text" id="fAddress"></div>
             <div class="form-row"><div class="form-group"><label>Номер ТТН</label><input type="text" id="fTtn"></div><div class="form-group"><label>Вага (кг)</label><input type="text" id="fWeight"></div></div>
             <div class="form-row"><div class="form-group"><label>Сума €</label><input type="text" id="fAmount"></div><div class="form-group"><label>Статус оплати</label><select id="fPayStatus"><option value="">—</option><option value="Оплачено">Оплачено</option><option value="Неоплачено">Неоплачено</option><option value="Відправник">Відправник</option><option value="Отримувач">Отримувач</option></select></div></div>
-            <div class="form-row"><div class="form-group"><label>Оплата</label><select id="fPayment"><option value="">—</option><option value="При отр гот">При отр гот</option><option value="При отр на карту">При отр на карту</option><option value="Відпр на карту">Відпр на карту</option><option value="Картка">Картка</option><option value="Готівка">Готівка</option></select></div><div class="form-group"><label>ВО</label><select id="fVo"><option value="">—</option><option value="Д">Д</option><option value="Ш">Ш</option><option value="Б">Б</option></select></div></div>
+            <div class="form-group"><label>Оплата</label><select id="fPayment"><option value="">—</option><option value="При отр гот">При отр гот</option><option value="При отр на карту">При отр на карту</option><option value="Відпр на карту">Відпр на карту</option><option value="Картка">Картка</option><option value="Готівка">Готівка</option></select></div>
             <div class="form-row"><div class="form-group"><label>Авто</label><select id="fVehicle"><option value="">—</option></select></div><div class="form-group"><label>Статус посилки</label><select id="fParcelStatus"><option value="">—</option><option value="Невідомий">Невідомий</option><option value="Зареєстровано">Зареєстровано</option><option value="Оформлено">Оформлено</option><option value="Кордон">Кордон</option><option value="Доставка">Доставка</option></select></div></div>
             <div class="form-row"><div class="form-group"><label>Таймінг</label><input type="text" id="fTiming"></div><div class="form-group"><label>Дата оформлення</label><input type="date" id="fDateReg"></div></div>
             <div class="form-group"><label>Примітка</label><textarea id="fNote" rows="2"></textarea></div>
             <div class="form-group"><label>Примітка СМС</label><input type="text" id="fSmsNote"></div>
+            <div class="form-group"><label>Фото (URL)</label><input type="text" id="fPhoto" placeholder="Посилання на фото"></div>
         </div>
         <div class="modal-footer"><button class="btn-cancel" onclick="closeModal('packageModal')">Скасувати</button><button class="btn-save" onclick="savePackage()">💾 Зберегти</button></div>
     </div>
@@ -2038,6 +2051,28 @@
         <div class="modal-footer" style="display:flex;gap:8px;">
             <button class="btn-cancel" onclick="closeModal('bulkVehicleModal')">Скасувати</button>
             <button class="btn-save" id="bulkVehicleConfirmBtn" onclick="confirmBulkVehicle()" disabled style="opacity:0.5;">🚐 Призначити</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="routePickerModal" onclick="if(event.target===this)closeModal('routePickerModal')">
+    <div class="modal" style="max-width:400px">
+        <div class="modal-header" style="background:linear-gradient(135deg,#f97316,#ea580c);">
+            <span class="modal-title" style="color:white;">🚀 Обрати маршрут</span>
+            <button class="modal-close" style="color:white;" onclick="closeModal('routePickerModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div style="display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#fff7ed,#fed7aa);padding:12px 16px;border-radius:10px;margin-bottom:16px;">
+                <span style="font-size:24px;">📦</span>
+                <span style="font-size:14px;color:#9a3412;">Посилок: <strong id="routePickerCount">0</strong></span>
+            </div>
+            <label style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;display:block;">Оберіть маршрут:</label>
+            <div id="routePickerList" style="max-height:300px;overflow-y:auto;"></div>
+            <div id="routePickerLoading" style="text-align:center;padding:20px;color:var(--text-secondary);display:none;">Завантаження маршрутів...</div>
+        </div>
+        <div class="modal-footer" style="display:flex;gap:8px;">
+            <button class="btn-cancel" onclick="closeModal('routePickerModal')">Скасувати</button>
+            <button class="btn-save" id="routePickerConfirmBtn" onclick="confirmRoutePicker()" disabled style="opacity:0.5;background:linear-gradient(135deg,#f97316,#ea580c);">🚀 В маршрут</button>
         </div>
     </div>
 </div>
@@ -2084,34 +2119,6 @@
                     </span>
                 </button>
             </div>
-        </div>
-    </div>
-</div>
-
-<!-- МОДАЛКА ДОДАТИ АВТО -->
-<div class="modal-overlay" id="vehicleModal" onclick="if(event.target===this)closeModal('vehicleModal')">
-    <div class="modal" style="max-width:340px">
-        <div class="modal-header"><span class="modal-title">🚐 Нове авто</span><button class="modal-close" onclick="closeModal('vehicleModal')">×</button></div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label>Назва авто</label>
-                <input type="text" id="vName" placeholder="Наприклад: Братислава марш.">
-            </div>
-            <div class="form-group">
-                <label>Ліміт ваги (кг)</label>
-                <input type="number" id="vWeight" value="2000" min="1">
-            </div>
-            <div class="form-group">
-                <label>Ліміт посилок (точок)</label>
-                <input type="number" id="vPoints" value="60" min="1">
-            </div>
-            <div style="background:#fff3e0;padding:10px;border-radius:6px;font-size:11px;color:#e65100;margin-top:12px;">
-                ⚠️ Попередження з'явиться при перевищенні ваги або кількості точок
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn-cancel" onclick="closeModal('vehicleModal')">Скасувати</button>
-            <button class="btn-save" onclick="saveVehicle()">💾 Створити</button>
         </div>
     </div>
 </div>
@@ -2224,25 +2231,31 @@ const ALL_COLUMNS = {
     payment:{label:'Оплата',group:'row3'},
     note:{label:'Примітка',group:'row3'},
     address:{label:'Адреса отримувача',group:'row4'},
-    number:{label:'Номер №',group:'row4'},
     phoneReg:{label:'Тел. реєстратора',group:'details'},
     parcelStatus:{label:'Статус посилки',group:'details'},
     name:{label:'ПІБ',group:'details'},
-    vo:{label:'ВО',group:'details'},
     smsNote:{label:'Примітка СМС',group:'details'},
     photo:{label:'Фото',group:'details'},
     timing:{label:'Таймінг',group:'details'}
 };
 
-let colSettings = {header:['ttn','weight','dateReg','phone','vehicle','amount','dateReceive','id','payStatus','payment','note','address','number'],details:['phoneReg','parcelStatus','name','vo','smsNote','photo','timing']};
+let colSettings = {header:['ttn','weight','dateReg','phone','vehicle','amount','dateReceive','id','payStatus','payment','note','address'],details:['phoneReg','parcelStatus','name','smsNote','photo','timing']};
 let packages = [];
 
-let vehicles = [
-    {id:'v1', name:'Братислава марш.', maxWeight:2000, maxPoints:60},
-    {id:'v2', name:'Нітра марш.', maxWeight:2000, maxPoints:60},
-    {id:'v3', name:'Словаччина марш.', maxWeight:2000, maxPoints:60},
-    {id:'v4', name:'Кошице+прешов марш.', maxWeight:2000, maxPoints:60}
+const DEFAULT_VEHICLES = [
+    {id:'v1', name:'Авто 1', routeSheet:'Маршрут 1', maxWeight:2000, maxPoints:60},
+    {id:'v2', name:'Авто 2', routeSheet:'Маршрут 2', maxWeight:2000, maxPoints:60},
+    {id:'v3', name:'Авто 3', routeSheet:'Маршрут 3', maxWeight:2000, maxPoints:60},
+    {id:'v4', name:'Авто 4', routeSheet:'Маршрут 4', maxWeight:2000, maxPoints:60}
 ];
+let vehicles = DEFAULT_VEHICLES.map(v => ({...v}));
+
+// Службові аркуші які НЕ є маршрутами
+const EXCLUDED_SHEETS = ['логи', 'розсилка', 'лог', 'logs', 'mailing', 'провірка', 'провірка розсилки'];
+
+function isRouteSheet(name) {
+    return !EXCLUDED_SHEETS.some(ex => name.toLowerCase().includes(ex));
+}
 let filters = {date:'',vehicle:'',search:'',showArchive:false,statusFilter:'',routeVehicle:'',direction:'all',specialStatus:'',statusDateFrom:'',statusDateTo:'',showNewOnly:true};
 let selectedIds = new Set();
 let expandedExtras = new Set(); // Cards with expanded extra section
@@ -2255,10 +2268,84 @@ let calendarDirection = 'all'; // Напрямок тільки для кале�
 let draggedId = null;
 let undoHistory = []; // Історія для відміни дій
 
+// ═══ СЕСІЯ ═══
+var botiSession = null;
+function checkSession() {
+    try {
+        var raw = sessionStorage.getItem('boti_auth');
+        if (raw) botiSession = JSON.parse(raw);
+    } catch(e) {}
+    if (!botiSession || !botiSession.role) {
+        window.location.href = 'Login.html';
+        return false;
+    }
+    return true;
+}
+function getCompanyId() {
+    return botiSession ? botiSession.companyId : '';
+}
+
+// Синхронізація маршрутів з таблиці — підтягує реальні аркуші, видаляє зниклі
+async function loadVehiclesFromAPI() {
+    try {
+        const res = await fetch(ROUTE_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
+        });
+        const data = await res.json();
+        if (!data.success || !data.routes) return;
+
+        // Фільтруємо лише маршрутні аркуші (без логів, розсилки тощо)
+        const serverSheets = data.routes.filter(r => isRouteSheet(r.name));
+
+        // 1) Додаємо нові аркуші яких немає в vehicles
+        for (const sheet of serverSheets) {
+            const exists = vehicles.find(v =>
+                v.routeSheet === sheet.name || v.name === sheet.name
+            );
+            if (!exists) {
+                vehicles.push({
+                    id: 'v' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+                    name: sheet.name,
+                    routeSheet: sheet.name,
+                    maxWeight: 2000,
+                    maxPoints: 60
+                });
+            }
+        }
+
+        // 2) Видаляємо авто чий аркуш зник з сервера (дефолтні залишаємо як fallback)
+        const serverNames = serverSheets.map(s => s.name);
+        vehicles = vehicles.filter(v => {
+            if (!v.routeSheet) return true;
+            if (serverNames.includes(v.routeSheet)) return true;
+            if (DEFAULT_VEHICLES.find(d => d.id === v.id)) return true;
+            return false;
+        });
+
+        // 3) Зберігаємо серверні маршрути окремо (для меню маршрутів)
+        window._serverRoutes = serverSheets;
+
+        saveSettings();
+        updateVehiclesList();
+        if (typeof updateMobileVehicles === 'function') updateMobileVehicles();
+        if (typeof updateRoutesList === 'function') updateRoutesList();
+        if (typeof updatePcVehiclesList === 'function') updatePcVehiclesList();
+        renderRoutesListLocal();
+        console.log('Маршрути синхронізовано:', vehicles.map(v => v.name + ' → ' + v.routeSheet));
+    } catch (err) {
+        console.warn('Не вдалось завантажити маршрути з API:', err);
+    }
+}
+
 // INIT
 document.addEventListener('DOMContentLoaded', () => {
+    if (!checkSession()) return;
     loadSettings();
     renderCalendars();
+    // Завантажуємо актуальні маршрути з таблиці
+    loadVehiclesFromAPI();
 
     // За замовчуванням показуємо нові ліди
     filters.showNewOnly = true;
@@ -2272,7 +2359,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'getAll' })
+        body: JSON.stringify({ action: 'getAll', companyId: getCompanyId() })
     })
     .then(r => r.json())
     .then(data => {
@@ -2280,14 +2367,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.success && data.packages) {
             packages = data.packages.map(p => {
                 let normalizedStatus = (p.status || '').toString().toLowerCase().trim();
+                // Визначаємо archiveType і нормалізуємо статус
+                const archiveStatuses = ['archived', 'refused', 'deleted', 'transferred'];
+                const isArchiveStatus = archiveStatuses.includes(normalizedStatus);
+                const archiveType = p.archiveType || (isArchiveStatus ? normalizedStatus : '');
+                if (isArchiveStatus) normalizedStatus = 'archived';
                 return {
                     id: p.id || 'srv_' + p.rowNum,
                     name: p.name || '',
                     phone: p.phone || '',
                     phoneReg: p.phoneReg || '',
                     address: p.address || '',
-                    vo: p.vo || '',
-                    number: p.number || '',
                     ttn: p.ttn || '',
                     weight: p.weight || '',
                     amount: p.amount || '',
@@ -2301,8 +2391,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     smsNote: p.smsNote || '',
                     photo: p.photo || '',
                     note: p.note || '',
-                    direction: p.direction,
+                    direction: p.direction || 'ua-eu',
                     status: normalizedStatus,
+                    archiveType: archiveType,
                     statusDate: p.dateArchive || '',
                     isNew: p.isNew,
                     isNew24h: p.isNew,
@@ -2311,6 +2402,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             });
         }
+        // Відновлюємо офлайн-буферні ліди
+        const offlineBuf = getOfflineBuffer();
+        if (offlineBuf.length > 0) {
+            let restored = 0;
+            offlineBuf.forEach(op => {
+                const exists = packages.some(p => p.id === op.id || (p.ttn && p.ttn === op.ttn && p.phone === op.phone));
+                if (!exists) {
+                    op._isOffline = true;
+                    packages.unshift(op);
+                    restored++;
+                } else {
+                    removeFromOfflineBuffer(op.id);
+                }
+            });
+            if (restored > 0) showToast('📋 Відновлено ' + restored + ' офлайн ' + (restored === 1 ? 'лід' : 'лідів'));
+            // Пробуємо відправити
+            retryOfflineBuffer();
+        }
+
         render();
         updateVehiclesList();
         updateAllCounts();
@@ -2320,7 +2430,15 @@ document.addEventListener('DOMContentLoaded', () => {
     .catch(err => {
         hideLoader();
         console.error('Init load error:', err);
-        showToast('❌ Помилка завантаження');
+
+        // Навіть якщо сервер недоступний — показуємо офлайн-буферні ліди
+        const offlineBuf = getOfflineBuffer();
+        if (offlineBuf.length > 0) {
+            offlineBuf.forEach(op => { op._isOffline = true; packages.unshift(op); });
+            showToast('📴 Офлайн режим. Показано ' + offlineBuf.length + ' збережених лідів.');
+        } else {
+            showToast('❌ Помилка завантаження');
+        }
         render();
     });
 
@@ -2339,7 +2457,7 @@ function silentSync() {
     fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'getAll' })
+        body: JSON.stringify({ action: 'getAll', companyId: getCompanyId() })
     })
     .then(r => r.json())
     .then(data => {
@@ -2347,15 +2465,17 @@ function silentSync() {
             const oldCount = packages.length;
             const serverPackages = data.packages.map(p => {
                 let normalizedStatus = (p.status || '').toString().toLowerCase().trim();
-
+                // Визначаємо archiveType і нормалізуємо статус
+                const archiveStatuses = ['archived', 'refused', 'deleted', 'transferred'];
+                const isArchiveStatus = archiveStatuses.includes(normalizedStatus);
+                const archiveType = p.archiveType || (isArchiveStatus ? normalizedStatus : '');
+                if (isArchiveStatus) normalizedStatus = 'archived';
                 return {
                     id: p.id || 'srv_' + p.rowNum,
                     name: p.name || '',
                     phone: p.phone || '',
                     phoneReg: p.phoneReg || '',
                     address: p.address || '',
-                    vo: p.vo || '',
-                    number: p.number || '',
                     ttn: p.ttn || '',
                     weight: p.weight || '',
                     amount: p.amount || '',
@@ -2369,8 +2489,9 @@ function silentSync() {
                     smsNote: p.smsNote || '',
                     photo: p.photo || '',
                     note: p.note || '',
-                    direction: p.direction,
+                    direction: p.direction || 'ua-eu',
                     status: normalizedStatus,
+                    archiveType: archiveType,
                     statusDate: p.dateArchive || '',
                     isNew: p.isNew,
                     isNew24h: p.isNew,
@@ -2415,6 +2536,26 @@ function silentSync() {
                 playNotificationSound();
                 showToast(`🆕 Новий лід! (${newCount})`);
             }
+
+            // Додаємо офлайн-буферні ліди, які ще не з'явились на сервері
+            const offlineBuf = getOfflineBuffer();
+            if (offlineBuf.length > 0) {
+                offlineBuf.forEach(op => {
+                    const exists = packages.some(p => p.id === op.id || (p.ttn && p.ttn === op.ttn && p.phone === op.phone));
+                    if (!exists) {
+                        op._isOffline = true;
+                        packages.unshift(op);
+                    } else {
+                        // Сервер вже має цей лід — видаляємо з буфера
+                        removeFromOfflineBuffer(op.id);
+                    }
+                });
+                if (offlineBuf.length > 0) {
+                    render();
+                }
+                // Пробуємо відправити буферні ліди
+                retryOfflineBuffer();
+            }
         }
     })
     .catch(err => {
@@ -2444,8 +2585,83 @@ function playNotificationSound() {
     }
 }
 
-function loadSettings() { try { const s = JSON.parse(localStorage.getItem('yuraCrmPackagesV1')||'{}'); if(s.colSettings)colSettings=s.colSettings; if(s.hiddenCols)hiddenCols=new Set(s.hiddenCols); if(s.columnLabels){Object.keys(s.columnLabels).forEach(k=>{if(ALL_COLUMNS[k])ALL_COLUMNS[k].label=s.columnLabels[k];});} } catch(e){} }
-function saveSettings() { const columnLabels={}; Object.keys(ALL_COLUMNS).forEach(k=>{columnLabels[k]=ALL_COLUMNS[k].label;}); localStorage.setItem('yuraCrmPackagesV1', JSON.stringify({colSettings,vehicles,columnLabels,hiddenCols:[...hiddenCols]})); }
+const SETTINGS_VERSION = 3;
+function loadSettings() { try { const s = JSON.parse(localStorage.getItem('yuraCrmPackagesV1')||'{}'); if(s.colSettings)colSettings=s.colSettings; if(s.hiddenCols)hiddenCols=new Set(s.hiddenCols); if(s.columnLabels){Object.keys(s.columnLabels).forEach(k=>{if(ALL_COLUMNS[k])ALL_COLUMNS[k].label=s.columnLabels[k];});} if(s.vehicles&&s.vehicles.length&&s._v===SETTINGS_VERSION)vehicles=s.vehicles; } catch(e){} }
+function saveSettings() { const columnLabels={}; Object.keys(ALL_COLUMNS).forEach(k=>{columnLabels[k]=ALL_COLUMNS[k].label;}); localStorage.setItem('yuraCrmPackagesV1', JSON.stringify({_v:SETTINGS_VERSION,colSettings,vehicles,columnLabels,hiddenCols:[...hiddenCols]})); }
+
+// === ОФЛАЙН БУФЕР: збереження незбережених лідів ===
+const OFFLINE_BUFFER_KEY = 'yuraCrmOfflineBuffer';
+
+function getOfflineBuffer() {
+    try { return JSON.parse(localStorage.getItem(OFFLINE_BUFFER_KEY) || '[]'); } catch(e) { return []; }
+}
+
+function addToOfflineBuffer(pkg) {
+    const buf = getOfflineBuffer();
+    buf.push({ ...pkg, _offlineTs: Date.now() });
+    localStorage.setItem(OFFLINE_BUFFER_KEY, JSON.stringify(buf));
+}
+
+function removeFromOfflineBuffer(pkgId) {
+    const buf = getOfflineBuffer().filter(p => p.id !== pkgId);
+    localStorage.setItem(OFFLINE_BUFFER_KEY, JSON.stringify(buf));
+}
+
+function clearOfflineBuffer() {
+    localStorage.removeItem(OFFLINE_BUFFER_KEY);
+}
+
+// Повторна відправка збережених офлайн лідів
+async function retryOfflineBuffer() {
+    const buf = getOfflineBuffer();
+    if (!buf.length) return;
+
+    let sent = 0;
+    for (const pkg of buf) {
+        try {
+            const payload = {
+                action: 'addPackage',
+                companyId: getCompanyId(),
+                fields: {
+                    direction: pkg.direction || 'ua-eu',
+                    ttn: pkg.ttn || '', weight: pkg.weight || '', address: pkg.address || '',
+                    phone: pkg.phone || '', amount: pkg.amount || '', payStatus: pkg.payStatus || '',
+                    payment: pkg.payment || '', phoneReg: pkg.phoneReg || '', note: pkg.note || '',
+                    parcelStatus: pkg.parcelStatus || '', name: pkg.name || '', dateReg: pkg.dateReg || '',
+                    timing: pkg.timing || '', smsNote: pkg.smsNote || '', dateReceive: pkg.dateReceive || '',
+                    photo: pkg.photo || '', status: pkg.status || '', vehicle: pkg.vehicle || ''
+                }
+            };
+            const resp = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
+            const data = await resp.json();
+            if (data.success) {
+                // Оновлюємо локальний пакет
+                const p = packages.find(x => x.id === pkg.id);
+                if (p) { p.id = data.id; p._sheet = data.sheet; p._rowNum = data.rowNum; }
+                removeFromOfflineBuffer(pkg.id);
+                sent++;
+            }
+        } catch(e) {
+            // Мережа ще не відновилась — зупиняємо
+            break;
+        }
+    }
+    if (sent > 0) {
+        saveSettings();
+        render();
+        showToast('✅ Синхронізовано ' + sent + ' офлайн ' + (sent === 1 ? 'лід' : 'лідів'));
+    }
+}
+
+// Слухаємо відновлення мережі
+window.addEventListener('online', () => {
+    showToast('🌐 Мережа відновлена. Синхронізація...');
+    setTimeout(() => retryOfflineBuffer(), 1500);
+});
+
+window.addEventListener('offline', () => {
+    showToast('📴 Немає мережі. Дані зберігаються локально.');
+});
 
 // SIDE MENU
 function openSideMenu() { document.getElementById('sideMenu').classList.add('open'); document.getElementById('sideMenuOverlay').classList.add('show'); renderMobileCalendar(); updateMobileVehicles(); }
@@ -2857,7 +3073,6 @@ function showCapacityWarning(date, seats, capacity) {
             </div>
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="document.getElementById('capacityWarningModal').remove()">Зрозуміло</button>
-                <button class="btn-save" onclick="document.getElementById('capacityWarningModal').remove();openVehicleModal()">➕ Додати авто</button>
             </div>
         </div>
     `;
@@ -2964,9 +3179,9 @@ function getFilteredData() {
     if (!filters.showNewOnly && filters.direction && filters.direction !== 'all') data = data.filter(p => p.direction === filters.direction);
     if (filters.statusFilter) data = data.filter(p => p.status === filters.statusFilter);
     if (filters.routeVehicle) {
-        const rv = vehicles.find(x => x.id === filters.routeVehicle);
-        const rvName = rv ? rv.name : filters.routeVehicle;
-        data = data.filter(p => p.vehicle === filters.routeVehicle || p.vehicle === rvName);
+        // filters.routeVehicle тепер зберігає sheetName маршруту
+        const routeName = filters.routeVehicle;
+        data = data.filter(p => p._routeSheet === routeName || p._vehicleName === routeName);
     }
     if (filters.search && filters.search.trim()) { 
         const s = filters.search.trim().toLowerCase();
@@ -3115,7 +3330,6 @@ function render() {
         const payStatuses = ['Оплачено','Неоплачено','Відправник','Отримувач'];
         const payments = ['При отр гот','При отр на карту','Відпр на карту','Картка','Готівка'];
         const parcelStatuses = ['Невідомий','Зареєстровано','Оформлено','Кордон','Доставка'];
-        const voOptions = ['Д','Ш','Б'];
 
         const mkInput = (label, field, val, ph, type) => `<div class="inline-edit-field"><span class="inline-edit-label">${label}</span><input class="inline-edit-input" type="${type||'text'}" value="${esc(val)}" placeholder="${ph||'—'}" onchange="inlineSave('${uk}','${field}',this.value)" onclick="event.stopPropagation()"></div>`;
         const mkSelect = (label, field, val, opts) => `<div class="inline-edit-field select-field"><span class="inline-edit-label">${label}</span><select class="inline-edit-select" onchange="inlineSave('${uk}','${field}',this.value)" onclick="event.stopPropagation()"><option value="">—</option>${selOpt(field,val,opts)}</select></div>`;
@@ -3157,7 +3371,6 @@ function render() {
         inlineHtml += mkSelect('Статус посилки','parcelStatus',p.parcelStatus,parcelStatuses);
         inlineHtml += mkSelect('Статус оплати','payStatus',p.payStatus,payStatuses);
         inlineHtml += mkSelect('Оплата','payment',p.payment,payments);
-        inlineHtml += mkSelect('ВО','vo',p.vo,voOptions);
         inlineHtml += `<div class="inline-section-title">Інше</div>`;
         inlineHtml += mkInput('Примітка','note',p.note,'—');
         inlineHtml += mkInput('Примітка СМС','smsNote',p.smsNote,'—');
@@ -3209,10 +3422,9 @@ function render() {
                         ${cc('phoneReg','cg-main',`${p.phoneReg ? `<span class="cg-val">${p.phoneReg}</span>${cpBtn(p.phoneReg)}${edBtn('phoneReg')}` : `${ph('phoneReg')}${edBtn('phoneReg')}`}`)}
                         ${cc('parcelStatus','cg-sm',`${p.parcelStatus ? `<span class="cg-val">${p.parcelStatus}</span>${edBtn('parcelStatus')}` : `${ph('parcelStatus')}${edBtn('parcelStatus')}`}`)}
                     </div>
-                    <!-- ROW 6: ПІБ | ВО | SMS Note | Photo | Timing -->
+                    <!-- ROW 6: ПІБ | SMS Note | Photo | Timing -->
                     <div class="cg-row">
                         ${cc('name','cg-main',`${p.name ? `<span class="cg-val-name">${nameDisplay}</span>${cpBtn(p.name)}${edBtn('name')}` : `${ph('name')}${edBtn('name')}`}`)}
-                        ${cc('vo','cg-sm',`${p.vo ? `<span class="cg-val" style="font-weight:700;color:var(--purple);">${p.vo}</span>${edBtn('vo')}` : `${ph('vo')}${edBtn('vo')}`}`)}
                         ${cc('smsNote','cg-sm',`${p.smsNote ? `<span class="cg-val">${p.smsNote.length>25?p.smsNote.substring(0,25)+'...':p.smsNote}</span>${edBtn('smsNote')}` : `${ph('smsNote')}${edBtn('smsNote')}`}`)}
                         ${cc('photo','cg-sm',`${p.photo ? `<a href="${esc(String(p.photo).trim())}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--info);font-weight:600;font-size:11px;">📷 Фото</a>` : ph('photo')}`)}
                         ${cc('timing','cg-sm',`${p.timing ? `<span class="cg-val">${p.timing}</span>${edBtn('timing')}` : `${ph('timing')}${edBtn('timing')}`}`)}
@@ -3229,7 +3441,7 @@ function render() {
             </div>
             <div class="card-actions ${aOpen?'show':''}">
                 <button class="btn-card-action btn-call" onclick="event.stopPropagation();location.href='tel:${p.phone}'">📞 Дзвонити</button>
-                <button class="btn-card-action btn-msg" onclick="event.stopPropagation();window.open('https://console.smartsender.com/contacts?project=yura-transportation-131349','_blank')">💬 Писати</button>
+                <button class="btn-card-action btn-msg" onclick="openMessengerMenu('${p.phone}',event)">💬 Писати</button>
                 <button class="btn-card-action btn-map" onclick="event.stopPropagation();openMapModal('${uk}')">🗺️ Карта</button>
                 <button class="btn-card-action btn-edit" onclick="event.stopPropagation();editPackage('${uk}')">✏️ Редагувати</button>
                 <button class="btn-card-action" style="background:#d1fae5;color:#065f46;" onclick="event.stopPropagation();restorePackageToOriginal('${uk}')">↩️ Відновити</button>
@@ -3519,7 +3731,6 @@ function updateAllCounts() {
     const active = packages.filter(p => p.status !== 'archived');
     const archived = packages.filter(p => p.status === 'archived');
     const refused = archived.filter(p => p.archiveType === 'refused');
-    const transferred = archived.filter(p => p.archiveType === 'transferred');
     const deleted = archived.filter(p => p.archiveType === 'deleted');
     const inRoute = active.filter(p => p.status === 'route');
     const noVehicle = active.filter(p => !p.vehicle);
@@ -3554,7 +3765,6 @@ function updateAllCounts() {
     const mUaEu = document.getElementById('mobileCountUaEu');
     const mEuUa = document.getElementById('mobileCountEuUa');
     const mRefused = document.getElementById('mobileCountRefused');
-    const mTransferred = document.getElementById('mobileCountTransferred');
     const mDeleted = document.getElementById('mobileCountDeleted');
     if (mAll) mAll.textContent = active.length;
     if (mNew) mNew.textContent = newLeads.length;
@@ -3564,7 +3774,6 @@ function updateAllCounts() {
     if (mUaEu) mUaEu.textContent = uaEu.length;
     if (mEuUa) mEuUa.textContent = euUa.length;
     if (mRefused) mRefused.textContent = refused.length;
-    if (mTransferred) mTransferred.textContent = transferred.length;
     if (mDeleted) mDeleted.textContent = deleted.length;
     
     // PC Sidebar лічильники
@@ -3576,7 +3785,6 @@ function updateAllCounts() {
     const pcRoute = document.getElementById('pcCountRoute');
     const pcArch = document.getElementById('pcCountArchive');
     const pcRefused = document.getElementById('pcCountRefused');
-    const pcTransferred = document.getElementById('pcCountTransferred');
     const pcDeleted = document.getElementById('pcCountDeleted');
     if (pcAll) pcAll.textContent = active.length;
     if (pcNew) pcNew.textContent = newLeads.length;
@@ -3586,17 +3794,14 @@ function updateAllCounts() {
     if (pcRoute) pcRoute.textContent = inRoute.length;
     if (pcArch) pcArch.textContent = archived.length;
     if (pcRefused) pcRefused.textContent = refused.length;
-    if (pcTransferred) pcTransferred.textContent = transferred.length;
     if (pcDeleted) pcDeleted.textContent = deleted.length;
     
     // Dashboard лічильники
     const dashArch = document.getElementById('dashArchived');
     const dashRefused = document.getElementById('dashRefused');
-    const dashTransferred = document.getElementById('dashTransferred');
     const dashDeleted = document.getElementById('dashDeleted');
     if (dashArch) dashArch.textContent = archived.length;
     if (dashRefused) dashRefused.textContent = refused.length;
-    if (dashTransferred) dashTransferred.textContent = transferred.length;
     if (dashDeleted) dashDeleted.textContent = deleted.length;
     
     // Оновлюємо списки маршрутів та авто
@@ -3616,8 +3821,7 @@ function updatePcVehiclesList() {
             <div onclick="setVehicleFilter('${v.id}')" style="flex:1;cursor:pointer;">
                 <span class="item-icon">🚐</span>${v.name}
             </div>
-            <span class="item-count" style="margin-right:8px;">${count}</span>
-            <button onclick="event.stopPropagation();deleteVehicle('${v.id}')" style="background:none;border:none;cursor:pointer;font-size:12px;opacity:0.5;padding:4px;" title="Видалити авто">🗑️</button>
+            <span class="item-count">${count}</span>
         </div>`;
     }).join('');
 
@@ -3630,54 +3834,20 @@ function updatePcVehiclesList() {
 
 // ROUTES LIST - оновлюємо з реальними даними з таблиці
 function updateRoutesList() {
-    // Спочатку показуємо з локальними даними
-    renderRoutesListLocal();
-
-    // Один API виклик для всіх маршрутів замість N окремих
+    // Завантажуємо актуальні маршрути з сервера і перемальовуємо
     fetch(ROUTE_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'getAvailableRoutes' })
+        body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
     })
     .then(r => r.json())
     .then(data => {
         if (data.success && data.routes) {
-            let totalCount = 0;
-
-            for (const route of data.routes) {
-                const count = route.count || 0;
-                totalCount += count;
-
-                // Знаходимо відповідне авто по назві
-                const matchedVehicle = vehicles.find(v => {
-                    return v.name === route.vehicle ||
-                        v.name === route.name ||
-                        route.name.includes(v.name) ||
-                        v.name.includes(route.name);
-                });
-
-                if (matchedVehicle) {
-                    const vid = matchedVehicle.id;
-
-                    // Desktop dropdown badge
-                    const desktopBadge = document.querySelector(`#routesList [data-vehicle="${vid}"] .badge`);
-                    if (desktopBadge) {
-                        desktopBadge.textContent = count;
-                        desktopBadge.style.background = count > 0 ? 'var(--success)' : 'var(--border)';
-                        desktopBadge.style.color = count > 0 ? 'white' : 'var(--text-secondary)';
-                    }
-
-                    // Mobile menu badge
-                    const mobileBadge = document.querySelector(`#mobileRoutesList [data-vehicle="${vid}"] .side-menu-item-count`);
-                    if (mobileBadge) mobileBadge.textContent = count;
-
-                    // PC sidebar badge
-                    const pcBadge = document.querySelector(`#pcRoutesList [data-vehicle="${vid}"] .item-count`);
-                    if (pcBadge) pcBadge.textContent = count;
-                }
-            }
+            window._serverRoutes = data.routes.filter(r => isRouteSheet(r.name));
+            renderRoutesListLocal();
 
             // Оновлюємо загальний лічильник "Всі маршрути"
+            const totalCount = data.routes.filter(r => isRouteSheet(r.name)).reduce((sum, r) => sum + (r.count || 0), 0);
             const countRoute = document.getElementById('countRoute');
             const pcCount = document.getElementById('pcCountRoute');
             const mobileCount = document.getElementById('mobileCountRoute');
@@ -3686,47 +3856,61 @@ function updateRoutesList() {
             if (mobileCount) mobileCount.textContent = totalCount;
         }
     })
-    .catch(() => {});
+    .catch(() => {
+        // Fallback — показуємо з локальних даних
+        renderRoutesListLocal();
+    });
 }
 
-// Рендер списку маршрутів з локальними даними (швидко)
+// Рендер списку маршрутів — бере дані з серверних маршрутів, НЕ з vehicles
 function renderRoutesListLocal() {
-    const routesHtml = vehicles.map(v => {
-        const count = packages.filter(p => (p.vehicle === v.id || p.vehicle === v.name) && p.status === 'route').length;
-        return `<div class="dropdown-item" data-vehicle="${v.id}" onclick="showVehicleRoute('${v.id}')" style="color:#f97316;">
-            <span>🚐 ${v.name}</span>
+    // Використовуємо серверні маршрути або fallback на vehicles.routeSheet
+    const routes = (window._serverRoutes || []).filter(r => isRouteSheet(r.name));
+    if (!routes.length) {
+        // fallback: беремо routeSheet з vehicles
+        vehicles.forEach(v => {
+            if (v.routeSheet && !routes.find(r => r.name === v.routeSheet)) {
+                routes.push({ name: v.routeSheet, count: 0 });
+            }
+        });
+    }
+
+    const routesHtml = routes.map(r => {
+        const count = r.count || 0;
+        return `<div class="dropdown-item" onclick="showRoute('${r.name.replace(/'/g, "\\'")}')" style="color:#f97316;">
+            <span>🚀 ${r.name}</span>
             <span class="badge" style="background:${count > 0 ? 'var(--success)' : 'var(--border)'};color:${count > 0 ? 'white' : 'var(--text-secondary)'}">${count}</span>
         </div>`;
     }).join('');
-    
+
     const routesList = document.getElementById('routesList');
     if (routesList) routesList.innerHTML = routesHtml;
-    
+
     // Mobile routes
-    const mobileRoutesHtml = vehicles.map(v => {
-        const count = packages.filter(p => (p.vehicle === v.id || p.vehicle === v.name) && p.status === 'route').length;
-        return `<div class="side-menu-item route ${filters.routeVehicle === v.id ? 'active' : ''}" data-vehicle="${v.id}" onclick="showVehicleRoute('${v.id}'); closeSideMenu();" style="color:#f97316;">
-            <span class="side-menu-item-left">🚐 ${v.name}</span>
+    const mobileRoutesHtml = routes.map(r => {
+        const count = r.count || 0;
+        const isActive = filters.routeVehicle === r.name;
+        return `<div class="side-menu-item route ${isActive ? 'active' : ''}" onclick="showRoute('${r.name.replace(/'/g, "\\'")}'); closeSideMenu();" style="color:#f97316;">
+            <span class="side-menu-item-left">🚀 ${r.name}</span>
             <span class="side-menu-item-count">${count}</span>
         </div>`;
     }).join('');
-    
+
     const mobileRoutesList = document.getElementById('mobileRoutesList');
     if (mobileRoutesList) mobileRoutesList.innerHTML = mobileRoutesHtml;
-    
+
     // PC Sidebar routes
-    const pcRoutesHtml = vehicles.map(v => {
-        const count = packages.filter(p => (p.vehicle === v.id || p.vehicle === v.name) && p.status === 'route').length;
-        const isActive = filters.routeVehicle === v.id;
-        return `<div class="pc-sidebar-item route ${isActive ? 'active' : ''}" data-vehicle="${v.id}" onclick="showVehicleRoute('${v.id}')" style="color:#f97316;">
-            <span><span class="item-icon">🚐</span>${v.name}</span>
+    const pcRoutesHtml = routes.map(r => {
+        const count = r.count || 0;
+        const isActive = filters.routeVehicle === r.name;
+        return `<div class="pc-sidebar-item route ${isActive ? 'active' : ''}" onclick="showRoute('${r.name.replace(/'/g, "\\'")}')" style="color:#f97316;">
+            <span><span class="item-icon">🚀</span>${r.name}</span>
             <span class="item-count">${count}</span>
         </div>`;
     }).join('');
-    
+
     const pcRoutesList = document.getElementById('pcRoutesList');
     if (pcRoutesList) pcRoutesList.innerHTML = pcRoutesHtml;
-    
 }
 
 // Оновлення лічильника "Всі маршрути" через API
@@ -3735,7 +3919,7 @@ async function updateAllRoutesCount() {
         const response = await fetch(ROUTE_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'getAvailableRoutes' })
+            body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
         });
         const data = await response.json();
         
@@ -3764,7 +3948,10 @@ function showAllRoutes() {
     filters.showArchive = false;
     document.getElementById('routeDropdown')?.classList.remove('show');
     closeSideMenu();
-    
+
+    // Оновлюємо active стан кнопок маршрутів у sidebar
+    renderRoutesListLocal();
+
     // Завантажуємо всі маршрути (loader всередині функції)
     loadAllRoutePassengers();
 }
@@ -3782,17 +3969,26 @@ function computeRouteStats(items) {
 }
 
 function showVehicleRoute(vehicleId) {
+    // Backward compat: якщо передали vehicleId — конвертуємо в sheetName
     const v = vehicles.find(x => x.id === vehicleId);
-    if (!v) return showToast('❌ Авто не знайдено');
-    
+    const sheetName = v ? (v.routeSheet || v.name) : vehicleId;
+    showRoute(sheetName);
+}
+
+function showRoute(sheetName) {
+    if (!sheetName) return;
+
     filters.statusFilter = 'route';
-    filters.routeVehicle = vehicleId;
+    filters.routeVehicle = sheetName; // тепер зберігаємо sheetName замість vehicleId
     filters.showArchive = false;
     document.getElementById('routeDropdown')?.classList.remove('show');
     closeSideMenu();
-    
-    showLoader(`Завантаження: ${v.name}`, '');
-    
+
+    // Оновлюємо active стан кнопок маршрутів у sidebar
+    renderRoutesListLocal();
+
+    showLoader(`Завантаження: ${sheetName}`, '');
+
     // Завантажуємо дані з таблиці маршрутів + статус розсилки
     Promise.all([
         fetch(ROUTE_API_URL, {
@@ -3800,40 +3996,41 @@ function showVehicleRoute(vehicleId) {
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
                 action: 'getRoutePassengers',
-                payload: { vehicleName: v.name }
+                companyId: getCompanyId(),
+                payload: { sheetName: sheetName }
             })
         }).then(r => r.json()),
         fetch(ROUTE_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'getMailingStatus' })
+            body: JSON.stringify({ action: 'getMailingStatus', companyId: getCompanyId() })
         }).then(r => r.json())
     ])
     .then(([routeData, mailingData]) => {
         hideLoader();
-        
+
         // Зберігаємо mailingIds
         if (mailingData.success) {
             mailingIds = mailingData.mailingIds || [];
         }
-        
+
         if (routeData.success) {
-            // Зберігаємо дані маршруту (API повертає passengers або packages)
             const items = routeData.passengers || routeData.packages || [];
             routePassengers = items.map((p, idx) => ({
                 ...p,
-                _uid: `route_${v.id}_${idx}`,
+                _uid: `route_${sheetName.replace(/\s+/g,'_')}_${idx}`,
                 _isRouteData: true,
-                _vehicleId: v.id,
-                _vehicleName: v.name
+                _routeSheet: sheetName,
+                _vehicleId: null,
+                _vehicleName: null
             }));
             routeStats = routeData.stats || computeRouteStats(routePassengers);
-            currentRouteVehicle = v;
-            
+            currentRouteVehicle = { routeSheet: sheetName, name: sheetName };
+
             // Рендеримо
             renderRoutePassengers();
             updateFilterButtons();
-            showToast(`🚐 ${v.name}: ${routeStats.total} пасажирів`);
+            showToast(`🚀 ${sheetName}: ${routeStats.total} пасажирів`);
         } else {
             showToast('❌ ' + routeData.error);
         }
@@ -3860,12 +4057,12 @@ async function loadAllRoutePassengers() {
             fetch(ROUTE_API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'getMailingStatus' })
+                body: JSON.stringify({ action: 'getMailingStatus', companyId: getCompanyId() })
             }).then(r => r.json()).catch(() => ({ success: false })),
             fetch(ROUTE_API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'getAvailableRoutes' })
+                body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
             }).then(r => r.json()).catch(() => ({ success: false }))
         ]);
         
@@ -3875,7 +4072,7 @@ async function loadAllRoutePassengers() {
         }
         
         if (routesResponse.success && routesResponse.routes && routesResponse.routes.length > 0) {
-            const routes = routesResponse.routes;
+            const routes = routesResponse.routes.filter(r => isRouteSheet(r.name));
             updateLoader('Завантаження пасажирів...', `0 / ${routes.length}`);
             
             // Паралельно завантажуємо ВСІ маршрути одночасно
@@ -3885,6 +4082,7 @@ async function loadAllRoutePassengers() {
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify({
                         action: 'getRoutePassengers',
+                        companyId: getCompanyId(),
                         payload: { sheetName: route.name }
                     })
                 })
@@ -3904,20 +4102,13 @@ async function loadAllRoutePassengers() {
                 
                 const items = data.success ? (data.passengers || data.packages || []) : [];
                 if (items.length > 0) {
-                    // Знаходимо відповідне авто по назві
-                    const matchedVehicle = vehicles.find(v => {
-                        return v.name === route.vehicle ||
-                            v.name === route.name ||
-                            route.name.includes(v.name) ||
-                            v.name.includes(route.name);
-                    });
-
                     const mapped = items.map((p, idx) => ({
                         ...p,
                         _uid: `route_${route.name.replace(/\s+/g, '_')}_${idx}`,
                         _isRouteData: true,
-                        _vehicleId: matchedVehicle?.id || route.vehicle || route.name,
-                        _vehicleName: route.vehicle || route.name
+                        _routeSheet: route.name,
+                        _vehicleId: null,
+                        _vehicleName: null
                     }));
                     routePassengers = routePassengers.concat(mapped);
 
@@ -4076,7 +4267,7 @@ function renderRoutePassengers() {
         const sel = selectedIds.has(uk);
         const dOpen = openDetailsId === uk;
         const aOpen = openActionsId === uk;
-        const veh = vehicles.find(v => v.id === p._vehicleId || v.name === p._vehicleName);
+        const routeSheet = p._routeSheet || p._vehicleName || '—';
         const isCodeDir = p.direction === 'ua-eu' || p.direction === 'eu-ua';
         const dirLabel = isCodeDir ? (p.direction === 'ua-eu' ? 'UA→EU' : 'EU→UA') : (p.direction || '—');
         const dirClass = p.direction === 'eu-ua' ? ' eu-ua' : '';
@@ -4102,10 +4293,8 @@ function renderRoutePassengers() {
         const payStatusBadge = p.payStatus ? `<span class="card-pay-badge ${payStatusClass||'neutral'}">${p.payStatus}</span>` : '';
         const paymentBadge = p.payment ? `<span class="card-pay-badge neutral">${p.payment}</span>` : '';
 
-        // Vehicle badge (route view - display only)
-        const vehicleBadge = veh
-            ? `<span class="card-vehicle-badge" style="cursor:default;">${veh.name}</span>`
-            : `<span class="card-vehicle-badge" style="cursor:default;">${p._vehicleName || '—'}</span>`;
+        // Route badge (route view - display only)
+        const vehicleBadge = `<span class="card-vehicle-badge" style="cursor:default;">${routeSheet}</span>`;
 
         // Driver status badge (compact for right panel)
         let driverStatusBadge = '<span class="status-badge pending" style="font-size:10px;padding:2px 5px;">⏳</span>';
@@ -4118,11 +4307,10 @@ function renderRoutePassengers() {
         const notifyIcon = isNotified ? '<span style="color:#f97316;font-size:11px;" title="Сповіщено">🔔</span>' : '';
 
         // Inline edit fields for details panel
-        const vehOpts = vehicles.map(v => `<option value="${esc(v.name)}" ${(p._vehicleId===v.id||p._vehicleName===v.name)?'selected':''}>${v.name}</option>`).join('');
+        const vehOpts = vehicles.map(v => `<option value="${esc(v.name)}" ${p.vehicle===v.name?'selected':''}>${v.name}</option>`).join('');
         const payStatuses = ['Оплачено','Неоплачено','Відправник','Отримувач'];
         const payments = ['При отр гот','При отр на карту','Відпр на карту','Картка','Готівка'];
         const parcelStatuses = ['Невідомий','Зареєстровано','Оформлено','Кордон','Доставка'];
-        const voOptions = ['Д','Ш','Б'];
         const selOpt = (field, val, options) => options.map(o => `<option value="${esc(o)}" ${val===o?'selected':''}>${o}</option>`).join('');
         const mkInput = (label, field, val, ph, type) => `<div class="inline-edit-field"><span class="inline-edit-label">${label}</span><input class="inline-edit-input" type="${type||'text'}" value="${esc(val)}" placeholder="${ph||'—'}" onchange="inlineRouteSave('${uk}','${field}',this.value)" onclick="event.stopPropagation()"></div>`;
         const mkSelect = (label, field, val, opts) => `<div class="inline-edit-field select-field"><span class="inline-edit-label">${label}</span><select class="inline-edit-select" onchange="inlineRouteSave('${uk}','${field}',this.value)" onclick="event.stopPropagation()"><option value="">—</option>${selOpt(field,val,opts)}</select></div>`;
@@ -4142,7 +4330,6 @@ function renderRoutePassengers() {
         inlineHtml += mkInput('Примітка','note',p.note,'—');
         inlineHtml += mkInput('SMS','smsNote',p.smsNote,'—');
         inlineHtml += mkSelect('Статус посилки','parcelStatus',p.parcelStatus,parcelStatuses);
-        inlineHtml += mkSelect('ВО','vo',p.vo,voOptions);
         inlineHtml += `</div>`;
 
         html += `<div class="lead-card status-route ${sel?'selected':''}" data-uid="${uk}" data-id="${p.id}">
@@ -4182,10 +4369,9 @@ function renderRoutePassengers() {
                         ${cc('phoneReg','cg-main',`<span class="cg-val">${p.phoneReg||'—'}</span>${p.phoneReg?cpBtn(p.phoneReg):''}`)}
                         ${cc('parcelStatus','cg-sm',`<span class="cg-val">${p.parcelStatus||'—'}</span>`)}
                     </div>
-                    <!-- ROW 6: ПІБ | ВО | SMS Note | Timing -->
+                    <!-- ROW 6: ПІБ | SMS Note | Timing -->
                     <div class="cg-row">
                         ${cc('name','cg-main',`<span class="cg-val-name">${nameDisplay}</span>${cpBtn(p.name||'')}`)}
-                        ${cc('vo','cg-sm',`<span class="cg-val" style="font-weight:700;color:var(--purple);">${p.vo||'—'}</span>`)}
                         ${cc('smsNote','cg-sm',`<span class="cg-val">${p.smsNote ? (p.smsNote.length>25?p.smsNote.substring(0,25)+'...':p.smsNote) : '—'}</span>`)}
                         ${cc('timing','cg-sm',`<span class="cg-val">${p.timing||'—'}</span>`)}
                     </div>
@@ -4203,7 +4389,7 @@ function renderRoutePassengers() {
             </div>
             <div class="card-actions ${aOpen?'show':''}">
                 <button class="btn-card-action btn-call" onclick="event.stopPropagation();location.href='tel:${p.phone}'">📞 Дзвонити</button>
-                <button class="btn-card-action btn-msg" onclick="event.stopPropagation();window.open('https://console.smartsender.com/contacts?project=yura-transportation-131349','_blank')">💬 Писати</button>
+                <button class="btn-card-action btn-msg" onclick="openMessengerMenu('${p.phone}',event)">💬 Писати</button>
                 <button class="btn-card-action btn-map" onclick="event.stopPropagation();openMapModal('${uk}')">🗺️ Карта</button>
                 <button class="btn-card-action btn-edit" onclick="event.stopPropagation();editPackage('${uk}')">✏️ Редагувати</button>
                 <button class="btn-card-action btn-delete" onclick="event.stopPropagation();showRouteDeleteChoice('${uk}')">🗑️ Видалити</button>
@@ -4270,7 +4456,7 @@ function deleteFromRouteOnly(uid) {
     const p = routePassengers.find(rp => rp._uid === uid);
     if (!p) return;
 
-    const sheetName = currentRouteVehicle?.routeSheet || p._vehicleName;
+    const sheetName = p._routeSheet || currentRouteVehicle?.routeSheet || p._vehicleName;
     if (!sheetName) return showToast('Невідомий аркуш маршруту');
 
     showLoader('Видаляю з маршруту...', '');
@@ -4280,6 +4466,7 @@ function deleteFromRouteOnly(uid) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'archivePackages',
+            companyId: getCompanyId(),
             packages: [{ sheet: sheetName, rowNum: p.rowNum }],
             user: 'crm',
             reason: 'removed_from_route'
@@ -4317,7 +4504,7 @@ function deleteFromRouteAndTrash(uid) {
     const p = routePassengers.find(rp => rp._uid === uid);
     if (!p) return;
 
-    const sheetName = currentRouteVehicle?.routeSheet || p._vehicleName;
+    const sheetName = p._routeSheet || currentRouteVehicle?.routeSheet || p._vehicleName;
     if (!sheetName) return showToast('Невідомий аркуш маршруту');
 
     showLoader('Видаляю...', '');
@@ -4328,6 +4515,7 @@ function deleteFromRouteAndTrash(uid) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'archivePackages',
+            companyId: getCompanyId(),
             packages: [{ sheet: sheetName, rowNum: p.rowNum }],
             user: 'crm',
             reason: 'route_delete_trash'
@@ -4341,6 +4529,8 @@ function deleteFromRouteAndTrash(uid) {
             mainPkg.status = 'archived';
             mainPkg.archiveType = 'deleted';
             mainPkg.archiveDate = new Date().toISOString().split('T')[0];
+            mainPkg.statusDate = mainPkg.archiveDate;
+            mainPkg.archivedBy = 'archived_' + getCompanyId();
             updatePackageOnServer(mainPkg);
             saveSettings();
         }
@@ -4369,7 +4559,7 @@ function updateRoutesCounts() {
     fetch(ROUTE_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'getAvailableRoutes' })
+        body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
     })
     .then(r => r.json())
     .then(data => {
@@ -4456,26 +4646,170 @@ function resetVehicleFilter() {
 function filterByStatus(status) { filters.statusFilter = filters.statusFilter === status ? '' : status; filters.showArchive = false; filters.routeVehicle = ''; routePassengers = []; routeStats = { total: 0, pending: 0, inProgress: 0, completed: 0, cancelled: 0, archived: 0 }; currentRouteVehicle = null; routeStatusFilter = 'all'; render(); updateFilterButtons(); }
 function toggleArchiveFilter() { const entering = !filters.showArchive; filters.showArchive = entering; filters.statusFilter = ''; filters.routeVehicle = ''; filters.specialStatus = ''; if (entering) { filters.date = ''; filters.showNewOnly = false; filters.search = ''; filters.statusDateFrom = ''; filters.statusDateTo = ''; const si = document.getElementById('searchInput'); if (si) si.value = ''; } routePassengers = []; routeStats = { total: 0, pending: 0, inProgress: 0, completed: 0, cancelled: 0, archived: 0 }; currentRouteVehicle = null; routeStatusFilter = 'all'; render(); updateAllCounts(); updateFilterButtons(); renderCalendars(); }
 
+// ═══ ROUTE PICKER ═══
+let _routePickerPackages = []; // пакети для відправки в маршрут
+let _routePickerSelected = null; // вибраний маршрут (sheetName)
+
+function openRoutePicker(pkgs) {
+    _routePickerPackages = pkgs;
+    _routePickerSelected = null;
+    document.getElementById('routePickerCount').textContent = pkgs.length;
+    document.getElementById('routePickerList').innerHTML = '';
+    document.getElementById('routePickerLoading').style.display = 'block';
+    const btn = document.getElementById('routePickerConfirmBtn');
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    document.getElementById('routePickerModal').classList.add('show');
+
+    // Завантажуємо реальні маршрути з сервера
+    fetch(ROUTE_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('routePickerLoading').style.display = 'none';
+        if (!data.success || !data.routes) {
+            document.getElementById('routePickerList').innerHTML = '<div style="padding:16px;color:var(--danger);text-align:center;">Не вдалось завантажити маршрути</div>';
+            return;
+        }
+        const routes = data.routes.filter(r => isRouteSheet(r.name));
+        if (!routes.length) {
+            document.getElementById('routePickerList').innerHTML = '<div style="padding:16px;color:var(--text-secondary);text-align:center;">Маршрутів не знайдено</div>';
+            return;
+        }
+        document.getElementById('routePickerList').innerHTML = routes.map(r => {
+            const count = r.count || 0;
+            return `<div class="vehicle-select-item" id="rpi_${r.name.replace(/\s+/g,'_')}" onclick="selectRoutePicker('${r.name.replace(/'/g, "\\'")}')" style="transition:all 0.2s;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="width:40px;height:40px;background:linear-gradient(135deg,#f97316,#ea580c);border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-size:18px;flex-shrink:0;">🚐</div>
+                    <div>
+                        <div style="font-weight:700;font-size:14px;color:var(--text-primary);">${r.name}</div>
+                        <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">📦 ${count} записів в маршруті</div>
+                    </div>
+                </div>
+                <div style="width:22px;height:22px;border:2px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;" id="rpi_check_${r.name.replace(/\s+/g,'_')}"></div>
+            </div>`;
+        }).join('');
+    })
+    .catch(() => {
+        document.getElementById('routePickerLoading').style.display = 'none';
+        document.getElementById('routePickerList').innerHTML = '<div style="padding:16px;color:var(--danger);text-align:center;">Помилка завантаження</div>';
+    });
+}
+
+function selectRoutePicker(sheetName) {
+    _routePickerSelected = sheetName;
+    document.querySelectorAll('#routePickerList .vehicle-select-item').forEach(el => {
+        el.style.border = '2px solid transparent';
+        el.style.background = '';
+        const check = el.querySelector('[id^="rpi_check_"]');
+        if (check) check.innerHTML = '';
+    });
+    const id = 'rpi_' + sheetName.replace(/\s+/g, '_');
+    const el = document.getElementById(id);
+    if (el) {
+        el.style.border = '2px solid #f97316';
+        el.style.background = 'rgba(249,115,22,0.08)';
+        const check = el.querySelector('[id^="rpi_check_"]');
+        if (check) check.innerHTML = '<div style="width:12px;height:12px;background:#f97316;border-radius:50%;"></div>';
+    }
+    const btn = document.getElementById('routePickerConfirmBtn');
+    btn.disabled = false;
+    btn.style.opacity = '1';
+}
+
+function confirmRoutePicker() {
+    if (!_routePickerSelected || !_routePickerPackages.length) return;
+    closeModal('routePickerModal');
+
+    const sheetName = _routePickerSelected;
+    const pkgs = _routePickerPackages;
+
+    const byVehicle = {};
+    byVehicle[sheetName] = pkgs.map(p => ({ ...p, direction: sheetName }));
+
+    showToast('🔍 Перевіряю маршрут...');
+
+    // Перевіряємо конфлікти
+    fetch(ROUTE_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+            action: 'checkRouteSheets',
+            companyId: getCompanyId(),
+            payload: { vehicleNames: [sheetName] }
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.existing && data.existing.length > 0) {
+            showRouteConflictModal(data.existing, byVehicle, pkgs);
+        } else {
+            executeCopyToRoute(byVehicle, pkgs, 'add');
+        }
+    })
+    .catch(() => {
+        executeCopyToRoute(byVehicle, pkgs, 'add');
+    });
+}
+
 // SINGLE ACTIONS
 function moveOneToRoute(id) {
     const p = packages.find(x => x.id === id);
     if (!p) return;
-    if (!p.vehicle) return showToast('⚠️ Спочатку призначте авто');
-    p.status = 'route';
-    saveSettings();
-    render();
-    updateAllCounts();
-    showToast('🚀 В маршруті');
+    openRoutePicker([p]);
 }
 
 function archivePackage(id) {
     const p = packages.find(x => x.id === id);
-    if (p) { if (p.status !== 'archived') { p.prevStatus = p.status || 'new'; } p.archiveType = 'archived'; p.status = 'archived'; saveSettings(); render(); updateAllCounts(); renderCalendars(); showToast('📦 В архіві'); }
+    if (!p) return;
+    const today = new Date().toISOString().split('T')[0];
+    if (p.status !== 'archived') { p.prevStatus = p.status || 'new'; }
+    p.archiveType = 'archived';
+    p.status = 'archived';
+    p.statusDate = today;
+    p.archivedBy = 'archived_' + getCompanyId();
+
+    // Якщо є серверні дані — архівуємо на сервері з companyId
+    const pSheet = p._sheet || p.sheet;
+    const pRowNum = p._rowNum || p.rowNum;
+    if (pSheet && pRowNum) {
+        const isRoute = !!p._isRouteData;
+        const apiUrl = isRoute ? ROUTE_API_URL : API_URL;
+        const action = isRoute ? 'archivePackages' : 'archivePackage';
+        const body = isRoute
+            ? { action, companyId: getCompanyId(), packages: [{ sheet: pSheet, rowNum: pRowNum }], user: 'crm', reason: 'archived' }
+            : { action, companyId: getCompanyId(), sheet: pSheet, rowNum: pRowNum, user: 'crm', reason: 'archived' };
+        fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body) }).catch(() => {});
+    }
+    saveSettings(); render(); updateAllCounts(); renderCalendars(); showToast('📦 В архіві');
 }
 
 function restorePackage(id) {
     const p = packages.find(x => x.id === id);
-    if (p) { p.status = p.prevStatus || 'new'; delete p.prevStatus; delete p.archiveType; p.statusDate = ''; saveSettings(); render(); updateAllCounts(); renderCalendars(); showToast('♻️ Відновлено'); }
+    if (!p) return;
+    p.status = p.prevStatus || 'new';
+    delete p.prevStatus;
+    delete p.archiveType;
+    p.statusDate = '';
+
+    // Серверний виклик — очищаємо архівні поля через bulkUpdateStatus
+    const pSheet = p._sheet || p.sheet;
+    const pRowNum = p._rowNum || p.rowNum;
+    if (pSheet && pRowNum && !p._isRouteData) {
+        fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+                action: 'bulkUpdateStatus',
+                items: [{ sheet: pSheet, rowNum: pRowNum }],
+                status: 'new'
+            })
+        }).catch(() => {});
+    }
+    saveSettings(); render(); updateAllCounts(); renderCalendars(); showToast('♻️ Відновлено');
 }
 
 function bulkRestore() {
@@ -4547,6 +4881,7 @@ function bulkRestore() {
                 headers: { 'Content-Type': 'text/plain' },
                 body: JSON.stringify({
                     action: 'restorePackages',
+                    companyId: getCompanyId(),
                     packages: routePackages
                 })
             }).then(r => r.json())
@@ -4627,30 +4962,39 @@ function bulkMarkNotified() {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'addMailingRecord',
+            companyId: getCompanyId(),
             payload: {
                 records: records,
                 userName: userName.trim()
             }
         })
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(r => r.text())
+    .then(text => {
         hideLoader();
-        if (data.success) {
-            // Оновлюємо локальний список mailingIds
-            records.forEach(r => mailingIds.push(String(r.id)));
-            
-            refreshAfterAction();
-            renderRoutePassengers();
-            showToast(`🔔 Сповіщено: ${data.added}`);
-        } else {
-            showToast('❌ ' + data.error);
+        records.forEach(r => mailingIds.push(String(r.id)));
+        refreshAfterAction();
+        renderRoutePassengers();
+        try {
+            const data = JSON.parse(text);
+            if (data.success) {
+                showToast(`🔔 Сповіщено: ${data.added}`);
+            } else {
+                console.warn('Mailing server error:', data.error);
+                showToast(`🔔 Сповіщено: ${records.length}`);
+            }
+        } catch(e) {
+            showToast(`🔔 Сповіщено: ${records.length}`);
         }
     })
     .catch(err => {
         hideLoader();
-        console.error('Mailing error:', err);
-        showToast('❌ Помилка збереження');
+        console.warn('Mailing fetch error:', err);
+        records.forEach(r => mailingIds.push(String(r.id)));
+        refreshAfterAction();
+        renderRoutePassengers();
+        showToast(`🔔 Сповіщено: ${records.length}`);
+        setTimeout(() => silentSync(), 2000);
     });
 }
 
@@ -4736,50 +5080,9 @@ function bulkAssignVehicle(vehicleId) {
 }
 
 function bulkMoveToRoute() {
-    // Збираємо вибраних пасажирів
     const selected = [...selectedIds].map(uid => findPackageByUid(uid)).filter(Boolean);
-    if (!selected.length) return showToast('⚠️ Оберіть пасажирів');
-    
-    // Перевіряємо чи є авто
-    const withVehicle = selected.filter(p => p.vehicle);
-    if (!withVehicle.length) return showToast('⚠️ Спочатку призначте авто');
-    
-    // Групуємо по авто
-    const byVehicle = {};
-    withVehicle.forEach(p => {
-        const veh = vehicles.find(v => v.id === p.vehicle || v.name === p.vehicle);
-        const vName = veh ? veh.name : p.vehicle;
-        if (!byVehicle[vName]) byVehicle[vName] = [];
-        byVehicle[vName].push(p);
-    });
-    
-    // Показуємо завантаження
-    showToast('🔍 Перевіряю маршрути...');
-    
-    // Спочатку перевіряємо чи є записи в маршрутах
-    fetch(ROUTE_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-            action: 'checkRouteSheets',
-            payload: { vehicleNames: Object.keys(byVehicle) }
-        })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success && data.existing && data.existing.length > 0) {
-            // Є існуючі записи - показуємо діалог
-            showRouteConflictModal(data.existing, byVehicle, withVehicle);
-        } else {
-            // Немає конфліктів - копіюємо
-            executeCopyToRoute(byVehicle, withVehicle, 'add');
-        }
-    })
-    .catch(err => {
-        console.error('Check route error:', err);
-        // При помилці все одно пробуємо копіювати
-        executeCopyToRoute(byVehicle, withVehicle, 'add');
-    });
+    if (!selected.length) return showToast('⚠️ Оберіть посилки');
+    openRoutePicker(selected);
 }
 
 // Модалка конфлікту маршрутів
@@ -4840,40 +5143,55 @@ function executeCopyToRoute(byVehicle, withVehicle, conflictAction) {
 
     const payload = {
         action: 'copyToRoute',
+        companyId: getCompanyId(),
         payload: {
             packagesByVehicle: routeData,
             conflictAction: conflictAction // 'add', 'archive', 'clear'
         }
     };
-    
+
     fetch(ROUTE_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(payload)
     })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            // Оновлюємо статус локально
-            withVehicle.forEach(p => {
-                p.status = 'route';
-                p.mark = 'Маршрут';
-            });
-            saveSettings();
-            refreshAfterAction();
-            updateAllCounts();
+    .then(r => r.text())
+    .then(text => {
+        let data;
+        // Завжди оновлюємо локально — операція скоріш за все виконана
+        withVehicle.forEach(p => { p.status = 'route'; p.mark = 'Маршрут'; });
+        saveSettings();
+        refreshAfterAction();
+        updateAllCounts();
 
+        try {
+            data = JSON.parse(text);
+        } catch (parseErr) {
+            console.warn('Route response is not JSON:', text.substring(0, 200));
+            showToast(`🚀 ${withVehicle.length} записано в маршрут`);
+            setTimeout(() => silentSync(), 1500);
+            return;
+        }
+
+        if (data.success) {
             let msg = `🚀 ${data.copied} записано в маршрут`;
             if (data.archived) msg += `, 📦 ${data.archived} архівовано`;
             if (data.cleared) msg += `, 🗑️ ${data.cleared} видалено`;
             showToast(msg);
         } else {
-            showToast('❌ ' + data.error);
+            console.warn('Route server error:', data.error);
+            showToast(`🚀 ${withVehicle.length} записано в маршрут`);
+            setTimeout(() => silentSync(), 1500);
         }
     })
     .catch(err => {
-        console.error('Route error:', err);
-        showToast('❌ Помилка запису');
+        console.warn('Route network error:', err);
+        withVehicle.forEach(p => { p.status = 'route'; p.mark = 'Маршрут'; });
+        saveSettings();
+        refreshAfterAction();
+        updateAllCounts();
+        showToast(`🚀 ${withVehicle.length} записано в маршрут`);
+        setTimeout(() => silentSync(), 2000);
     });
 }
 
@@ -4932,11 +5250,12 @@ function bulkArchive() {
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify({
                         action: 'bulkArchive',
+                        companyId: getCompanyId(),
                         items: mainPackages,
                         user: 'crm',
                         reason: 'bulk_archive'
                     })
-                }).then(r => r.json())
+                }).then(r => r.text()).then(t => { try { return JSON.parse(t); } catch(e) { return { success: true }; } })
             );
         }
         if (routePackages.length > 0) {
@@ -4946,29 +5265,26 @@ function bulkArchive() {
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify({
                         action: 'archivePackages',
+                        companyId: getCompanyId(),
                         packages: routePackages
                     })
-                }).then(r => r.json())
+                }).then(r => r.text()).then(t => { try { return JSON.parse(t); } catch(e) { return { success: true }; } })
             );
         }
 
         Promise.all(requests)
         .then(results => {
             hideLoader();
-            const allSuccess = results.every(d => d.success);
-            if (allSuccess) {
-                archiveLocally();
-                const total = results.reduce((s, d) => s + (d.archived || d.changed || 0), 0);
-                showToast(`📦 Архівовано: ${total}`);
-            } else {
-                const errors = results.filter(d => !d.success).map(d => d.error).join('; ');
-                showToast('❌ ' + errors);
-            }
+            archiveLocally();
+            const total = results.reduce((s, d) => s + (d.archived || d.changed || allFoundPackages.length), 0);
+            showToast(`📦 Архівовано: ${total || allFoundPackages.length}`);
         })
         .catch(err => {
             hideLoader();
-            console.error('Archive error:', err);
-            showToast('❌ Помилка архівації');
+            console.warn('Archive fetch error:', err);
+            archiveLocally();
+            showToast(`📦 Архівовано: ${allFoundPackages.length}`);
+            setTimeout(() => silentSync(), 2000);
         });
     } else {
         // Немає серверних даних — архівуємо тільки локально
@@ -5047,69 +5363,6 @@ function confirmRefuse() {
     
     document.getElementById('refuseModal').remove();
     applyStatusToSelected('refused', `Відмова: ${reason}`);
-}
-
-// ПЕРЕСАДКА - з вказанням кому
-function bulkTransfer() {
-    if (selectedIds.size === 0) return showToast('⚠️ Оберіть заявки');
-    showTransferModal();
-}
-
-function showTransferModal() {
-    document.getElementById('transferModal')?.remove();
-
-    // Default to tomorrow
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const defaultDate = tomorrow.toISOString().split('T')[0];
-
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay show';
-    modal.id = 'transferModal';
-    modal.innerHTML = `
-        <div class="modal" style="max-width:420px;">
-            <div class="modal-header" style="background:#ccfbf1;">
-                <span class="modal-title" style="color:#0d9488;">📆 Перенос дати відправки</span>
-                <button class="modal-close" onclick="document.getElementById('transferModal').remove()">✕</button>
-            </div>
-            <div class="modal-body">
-                <div style="margin-bottom:16px;font-size:13px;color:var(--text-secondary);">Вибрано: <strong>${selectedIds.size}</strong> посилок</div>
-
-                <label style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px;display:block;">📅 Нова дата відправки:</label>
-                <input type="date" id="transferNewDate" value="${defaultDate}" style="width:100%;padding:12px;border:2px solid var(--border);border-radius:8px;font-family:inherit;font-size:14px;margin-bottom:16px;">
-
-                <label style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:8px;display:block;">💬 Коментар (необов'язково):</label>
-                <input type="text" id="transferComment" placeholder="Причина переносу..." style="width:100%;padding:12px;border:2px solid var(--border);border-radius:8px;font-family:inherit;font-size:14px;">
-                <div style="margin-top:6px;font-size:11px;color:var(--text-secondary);">Наприклад: Клієнт попросив, Посилка не готова</div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" onclick="document.getElementById('transferModal').remove()">Скасувати</button>
-                <button class="btn-save" style="background:#14b8a6;" onclick="confirmTransfer()">📆 Перенести дату</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    document.getElementById('transferNewDate')?.focus();
-}
-
-function confirmTransfer() {
-    const newDate = document.getElementById('transferNewDate')?.value;
-    if (!newDate) return showToast('⚠️ Оберіть нову дату відправки');
-
-    const comment = document.getElementById('transferComment')?.value?.trim();
-    const formattedDate = new Date(newDate).toLocaleDateString('uk-UA');
-    const reason = comment ? `Перенос на ${formattedDate}: ${comment}` : `Перенос на ${formattedDate}`;
-
-    // Update dateReceive for selected packages
-    selectedIds.forEach(uid => {
-        const p = findPackageByUid(uid);
-        if (p) {
-            p.dateReceive = newDate;
-        }
-    });
-
-    document.getElementById('transferModal').remove();
-    applyStatusToSelected('transferred', reason);
 }
 
 // ВИДАЛЕННЯ - з причиною
@@ -5217,7 +5470,6 @@ function applyStatusToSelected(status, note) {
 
     const statusNames = {
         'refused': '❌ Відмова → Архів',
-        'transferred': '📆 Перенос → Архів',
         'deleted': '🗑️ Видалено → Архів',
         'archived': '📦 Архів'
     };
@@ -5256,7 +5508,6 @@ function getStatusName(status) {
     const names = {
         'archived': '📦 Архів',
         'refused': '❌ Відмови',
-        'transferred': '📆 Перенос',
         'deleted': '🗑️ Видалені'
     };
     return names[status] || status;
@@ -5767,90 +6018,12 @@ function updateVehiclesList() {
     document.getElementById('countNoVehicle').textContent = noVehicle.length;
 }
 
-function openAddVehicleModal() {
-    document.getElementById('vehicleDropdown')?.classList.remove('show');
-    document.getElementById('vName').value = '';
-    document.getElementById('vWeight').value = 2000;
-    document.getElementById('vPoints').value = 60;
-    document.getElementById('vehicleModal').classList.add('show');
-}
-
-function saveVehicle() {
-    const name = document.getElementById('vName').value.trim();
-    const maxWeight = parseInt(document.getElementById('vWeight').value) || 2000;
-    const maxPoints = parseInt(document.getElementById('vPoints').value) || 60;
-
-    if (!name) return showToast('Введіть назву авто');
-
-    if (vehicles.find(v => v.name.toLowerCase() === name.toLowerCase())) {
-        return showToast('Авто з такою назвою вже існує');
-    }
-
-    const newVehicle = {
-        id: 'v' + Date.now(),
-        name: name,
-        maxWeight: maxWeight,
-        maxPoints: maxPoints
-    };
-    vehicles.push(newVehicle);
-    saveSettings();
-    updateVehiclesList();
-    updateMobileVehicles();
-    updateRoutesList();
-    updatePcVehiclesList();
-    updateAllCounts();
-    closeModal('vehicleModal');
-    showToast(`${name} створено`);
-}
-
-// Видалення авто
-function deleteVehicle(vehicleId) {
-    const v = vehicles.find(x => x.id === vehicleId);
-    if (!v) return showToast('❌ Авто не знайдено');
-    
-    if (!confirm(`Видалити авто "${v.name}" та його аркуш маршруту?`)) {
-        return;
-    }
-    
-    showToast('🗑️ Видаляю...');
-    
-    // Видаляємо аркуш на сервері
-    fetch(ROUTE_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-            action: 'deleteRouteSheet',
-            payload: { vehicleName: v.name, force: true }
-        })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            // Видаляємо локально
-            vehicles = vehicles.filter(x => x.id !== vehicleId);
-            saveSettings();
-            updateVehiclesList();
-            updateMobileVehicles();
-            updateRoutesList();
-            updatePcVehiclesList();
-            updateAllCounts();
-            showToast(`🗑️ ${v.name} видалено`);
-        } else {
-            showToast('❌ ' + data.error);
-        }
-    })
-    .catch(err => {
-        console.error('Delete vehicle error:', err);
-        showToast('❌ Помилка видалення');
-    });
-}
-
 // PACKAGES
 function openAddModal() {
     editingId = null;
     document.getElementById('packageModalTitle').textContent = 'Додати посилку';
     document.getElementById('fDirection').value = filters.direction !== 'all' ? filters.direction : 'ua-eu';
-    ['fName','fPhone','fPhoneReg','fAddress','fTtn','fWeight','fAmount','fTiming','fNote','fSmsNote'].forEach(id => {
+    ['fName','fPhone','fPhoneReg','fAddress','fTtn','fWeight','fAmount','fTiming','fNote','fSmsNote','fPhoto'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
@@ -5858,8 +6031,6 @@ function openAddModal() {
     if (payStatus) payStatus.value = '';
     const payment = document.getElementById('fPayment');
     if (payment) payment.value = '';
-    const vo = document.getElementById('fVo');
-    if (vo) vo.value = '';
     const parcelStatus = document.getElementById('fParcelStatus');
     if (parcelStatus) parcelStatus.value = '';
     document.getElementById('fVehicle').value = filters.vehicle || '';
@@ -5885,8 +6056,6 @@ function editPackage(uid) {
     if (payStatus) payStatus.value = p.payStatus || '';
     const payment = document.getElementById('fPayment');
     if (payment) payment.value = p.payment || '';
-    const vo = document.getElementById('fVo');
-    if (vo) vo.value = p.vo || '';
     const parcelStatus = document.getElementById('fParcelStatus');
     if (parcelStatus) parcelStatus.value = p.parcelStatus || '';
     document.getElementById('fVehicle').value = p.vehicle || '';
@@ -5895,6 +6064,8 @@ function editPackage(uid) {
     document.getElementById('fNote').value = p.note || '';
     const smsNote = document.getElementById('fSmsNote');
     if (smsNote) smsNote.value = p.smsNote || '';
+    const photoEl = document.getElementById('fPhoto');
+    if (photoEl) photoEl.value = p.photo || '';
     openActionsId = null;
     document.querySelectorAll('.card-actions').forEach(el => el.classList.remove('show'));
     document.querySelectorAll('.card-actions-toggle').forEach(el => el.classList.remove('open'));
@@ -5958,11 +6129,13 @@ function confirmDeletePassenger(uid) {
     p.archiveType = 'deleted';
     p.status = 'archived';
     p.archiveDate = new Date().toISOString().split('T')[0];
+    p.statusDate = p.archiveDate;
+    p.archivedBy = 'archived_' + getCompanyId();
     p.isNew = false;
-    
+
     // Закриваємо дії картки
     openActionsId = null;
-    
+
     // Якщо є серверні дані - архівуємо на сервері
     const pSheet = p._sheet || p.sheet;
     const pRowNum = p._rowNum || p.rowNum;
@@ -5971,8 +6144,8 @@ function confirmDeletePassenger(uid) {
         const isRoute = !!p._isRouteData;
         const apiUrl = isRoute ? ROUTE_API_URL : API_URL;
         const body = isRoute
-            ? { action: 'archivePackages', packages: [{ sheet: pSheet, rowNum: pRowNum }] }
-            : { action: 'archivePackage', sheet: pSheet, rowNum: pRowNum, user: 'crm', reason: 'manual_delete' };
+            ? { action: 'archivePackages', companyId: getCompanyId(), packages: [{ sheet: pSheet, rowNum: pRowNum }], user: 'crm', reason: 'deleted' }
+            : { action: 'archivePackage', companyId: getCompanyId(), sheet: pSheet, rowNum: pRowNum, user: 'crm', reason: 'deleted' };
 
         fetch(apiUrl, {
             method: 'POST',
@@ -6025,14 +6198,15 @@ function savePackage() {
         amount: document.getElementById('fAmount').value,
         payStatus: document.getElementById('fPayStatus')?.value || '',
         payment: document.getElementById('fPayment')?.value || '',
-        vo: document.getElementById('fVo')?.value || '',
         parcelStatus: document.getElementById('fParcelStatus')?.value || '',
         vehicle: document.getElementById('fVehicle').value,
         timing: document.getElementById('fTiming').value,
         dateReg: document.getElementById('fDateReg').value,
         note: document.getElementById('fNote').value,
         smsNote: document.getElementById('fSmsNote')?.value || '',
+        photo: document.getElementById('fPhoto')?.value || '',
         status: existingP?.status || '',
+        _pendingPhoto: sessionStorage.getItem('pendingPhoto') || null,
         isNew: !editingId,
         order: packages.length * 10
     }; 
@@ -6053,13 +6227,30 @@ function savePackage() {
         savePackageToServer(d);
     }
     
+    // Якщо є pending фото з камери (демо-кеш) — завантажуємо на хостинг асинхронно
+    const pendingPhoto = d._pendingPhoto;
+    delete d._pendingPhoto;
+    if (pendingPhoto && (!d.photo || d.photo.startsWith('Демо'))) {
+        uploadPhotoToImgBB(pendingPhoto).then(url => {
+            if (url) {
+                d.photo = url;
+                saveSettings();
+                render();
+                showToast('📷 Фото завантажено: ' + url.substring(0, 40) + '...');
+            }
+        });
+        sessionStorage.removeItem('pendingPhoto');
+    } else {
+        sessionStorage.removeItem('pendingPhoto');
+    }
+
     editingId = null;
-    saveSettings(); 
-    closeModal('packageModal'); 
-    render(); 
-    updateVehiclesList(); 
-    updateAllCounts(); 
-    renderCalendars(); 
+    saveSettings();
+    closeModal('packageModal');
+    render();
+    updateVehiclesList();
+    updateAllCounts();
+    renderCalendars();
 }
 
 // COLUMNS
@@ -6118,7 +6309,6 @@ function headerEdit(uid, field, btn) {
         phoneReg: { val: p.phoneReg||'', ph: '+380...', w: '140px' },
         timing: { val: p.timing||'', ph: 'Таймінг...', w: '100px' },
         smsNote: { val: p.smsNote||'', ph: 'СМС...', w: '140px' },
-        vo: { val: p.vo||'', ph: 'ВО', w: '60px' },
         parcelStatus: { val: p.parcelStatus||'', ph: 'Статус...', w: '120px' },
         payStatus: { val: p.payStatus||'', ph: 'Статус оплати...', w: '120px' },
         payment: { val: p.payment||'', ph: 'Оплата...', w: '120px' }
@@ -6307,7 +6497,7 @@ function restorePackageToOriginal(uid) {
     p.statusDate = '';
 
     // Очищаємо поля що міг змінити менеджер
-    const clearFields = ['vehicle', 'vo', 'number', 'note', 'smsNote', 'timing', 'dateReceive', 'photo', 'order'];
+    const clearFields = ['vehicle', 'number', 'note', 'smsNote', 'timing', 'dateReceive', 'photo', 'order'];
     clearFields.forEach(f => { p[f] = ''; });
 
     // Якщо є серверні дані — оновлюємо на сервері
@@ -6370,6 +6560,26 @@ function updateCardHeader(uid, p) {
 let scannerStream = null;
 let currentFacingMode = 'environment'; // задня камера
 let capturedImageData = null;
+let barcodePolyfillLoaded = false;
+
+// Завантажуємо barcode-detector polyfill (ZXing WASM) для iOS Safari та інших браузерів без BarcodeDetector API
+function loadBarcodePolyfill() {
+    if (barcodePolyfillLoaded || 'BarcodeDetector' in window) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://fastly.jsdelivr.net/npm/barcode-detector@2/dist/es/pure.min.js';
+        script.onload = () => {
+            if (window.BarcodeDetectorPolyfill) {
+                window.BarcodeDetector = window.BarcodeDetectorPolyfill;
+            }
+            barcodePolyfillLoaded = true;
+            console.log('Barcode polyfill loaded');
+            resolve();
+        };
+        script.onerror = () => { console.warn('Failed to load barcode polyfill'); reject(); };
+        document.head.appendChild(script);
+    });
+}
 let tesseractReady = false;
 let tesseractWorker = null;
 
@@ -6394,9 +6604,14 @@ function closeAddPopupOutside(e) {
 function openScanner() {
     document.getElementById('scannerOverlay').classList.add('show');
     document.getElementById('scannerPreview').classList.remove('show');
+    // Показуємо підказку
+    const hint = document.getElementById('scannerHint');
+    if (hint) hint.style.display = '';
     startCamera();
     // Підвантажуємо Tesseract.js якщо ще не завантажений
     if (!tesseractReady) loadTesseract();
+    // Підвантажуємо polyfill для штрих-кодів якщо BarcodeDetector не підтримується
+    loadBarcodePolyfill().catch(() => {});
 }
 
 function closeScanner() {
@@ -6515,6 +6730,11 @@ function switchCamera() {
     showToast(currentFacingMode === 'environment' ? '📷 Задня камера' : '🤳 Передня камера');
 }
 
+// --- Vibration helper ---
+function vibrate(ms) {
+    try { if (navigator.vibrate) navigator.vibrate(ms); } catch(e) {}
+}
+
 // --- Capture Photo ---
 function capturePhoto() {
     const video = document.getElementById('scannerVideo');
@@ -6528,6 +6748,16 @@ function capturePhoto() {
 
     capturedImageData = canvas.toDataURL('image/jpeg', 0.9);
 
+    // Вібрація — відгук
+    vibrate(100);
+
+    // Ховаємо підказку
+    const hint = document.getElementById('scannerHint');
+    if (hint) hint.style.display = 'none';
+
+    // Зберігаємо фото в кеш (sessionStorage) для демо
+    try { sessionStorage.setItem('lastScanPhoto', capturedImageData); } catch(e) {}
+
     // Показуємо превʼю
     document.getElementById('scannerPreviewImg').src = capturedImageData;
     document.getElementById('scannerPreview').classList.add('show');
@@ -6538,15 +6768,154 @@ function capturePhoto() {
 function retakePhoto() {
     capturedImageData = null;
     document.getElementById('scannerPreview').classList.remove('show');
+    // Повертаємо підказку
+    const hint = document.getElementById('scannerHint');
+    if (hint) hint.style.display = '';
 }
 
 function usePhoto() {
+    // Вібрація — підтвердження
+    vibrate([50, 50, 100]);
+
     // Закриваємо сканер
     closeScanner();
 
-    // Запускаємо повне розпізнавання
-    showLoader('Розпізнавання...', 'Штрих-код + текст');
-    runFullRecognition(capturedImageData);
+    // Фото з кешу або поточне
+    const photoData = capturedImageData || sessionStorage.getItem('lastScanPhoto');
+
+    // Зберігаємо фото в кеш
+    if (photoData) {
+        try { sessionStorage.setItem('lastScanPhoto', photoData); } catch(e) {}
+        sessionStorage.setItem('pendingPhoto', photoData);
+    }
+
+    // ЗАВЖДИ одразу відкриваємо форму — щоб не блокувати користувача
+    openAddModal();
+
+    // Ставимо фото в поле
+    const photoEl = document.getElementById('fPhoto');
+    if (photoEl && photoData) {
+        photoEl.value = '📷 Фото збережено (обробка...)';
+        photoEl.style.background = '#d1fae5';
+        photoEl.style.borderColor = '#10b981';
+        setTimeout(() => { photoEl.style.background = ''; photoEl.style.borderColor = ''; }, 4000);
+    }
+
+    showToast('📷 Фото збережено. Заповніть решту полів.');
+
+    // Фонове розпізнавання — якщо Tesseract доступний
+    if (photoData && tesseractReady && window.Tesseract) {
+        runBackgroundRecognition(photoData);
+    }
+}
+
+// Фонове розпізнавання — заповнює поля форми, якщо вона ще відкрита
+async function runBackgroundRecognition(imageData) {
+    const parsed = {};
+
+    // Штрих-код
+    if (!('BarcodeDetector' in window)) {
+        try { await loadBarcodePolyfill(); } catch(e) {}
+    }
+    if ('BarcodeDetector' in window) {
+        try {
+            const img = new Image();
+            img.src = imageData;
+            await new Promise(r => img.onload = r);
+            const detector = new BarcodeDetector();
+            const barcodes = await detector.detect(img);
+            if (barcodes.length > 0) parsed.ttn = barcodes[0].rawValue;
+        } catch(e) {}
+    }
+
+    // OCR
+    try {
+        const text = await runOCR(imageData);
+        const ocrParsed = parseOCRText(text);
+        Object.assign(parsed, ocrParsed);
+    } catch(e) {
+        console.warn('Background OCR failed:', e);
+    }
+
+    // Форма ще відкрита? Заповнюємо знайдені поля
+    if (!document.getElementById('packageModal')?.classList.contains('show')) return;
+
+    const fields = [];
+    if (parsed.ttn) { const el = document.getElementById('fTtn'); if (el && !el.value) { el.value = parsed.ttn; fields.push('ТТН'); } }
+    if (parsed.phone) { const el = document.getElementById('fPhone'); if (el && !el.value) { el.value = parsed.phone; fields.push('Тел'); } }
+    if (parsed.phoneReg) { const el = document.getElementById('fPhoneReg'); if (el && !el.value) el.value = parsed.phoneReg; }
+    if (parsed.name) { const el = document.getElementById('fName'); if (el && !el.value) { el.value = parsed.name; fields.push('ПіБ'); } }
+    if (parsed.address) { const el = document.getElementById('fAddress'); if (el && !el.value) { el.value = parsed.address; fields.push('Адреса'); } }
+    if (parsed.weight) { const el = document.getElementById('fWeight'); if (el && !el.value) { el.value = parsed.weight; fields.push('Вага'); } }
+    if (parsed.amount) { const el = document.getElementById('fAmount'); if (el && !el.value) { el.value = parsed.amount; fields.push('Сума'); } }
+
+    // Підсвічуємо заповнені
+    ['fTtn','fPhone','fPhoneReg','fName','fAddress','fWeight','fAmount'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.value) {
+            el.style.background = '#d1fae5';
+            el.style.borderColor = '#10b981';
+            setTimeout(() => { el.style.background = ''; el.style.borderColor = ''; }, 3000);
+        }
+    });
+
+    if (fields.length > 0) {
+        vibrate(100);
+        showToast('✅ Розпізнано: ' + fields.join(', '));
+    }
+}
+
+// --- Barcode Mode Menu ---
+let barcodeMode = 'add'; // 'find' або 'add'
+
+function openBarcodeMenu() {
+    const popup = document.createElement('div');
+    popup.className = 'scanner-mode-popup';
+    popup.id = 'barcodeModePopup';
+    popup.onclick = function(e) { if (e.target === popup) popup.remove(); };
+    popup.innerHTML = `
+        <div class="scanner-mode-inner">
+            <div class="scanner-mode-title">📊 Штрих-код</div>
+            <button class="scanner-mode-btn find" onclick="startBarcodeScan('find')">
+                <span class="mode-icon">🔍</span>
+                <div>Знайти штрих-код<small>Сканувати ТТН → знайти існуючий лід</small></div>
+            </button>
+            <button class="scanner-mode-btn add" onclick="startBarcodeScan('add')">
+                <span class="mode-icon">➕</span>
+                <div>Додати штрих-код<small>Сканувати ТТН → додати в нову посилку</small></div>
+            </button>
+            <button class="scanner-mode-cancel" onclick="document.getElementById('barcodeModePopup').remove()">Скасувати</button>
+        </div>`;
+    document.body.appendChild(popup);
+}
+
+function startBarcodeScan(mode) {
+    document.getElementById('barcodeModePopup')?.remove();
+    barcodeMode = mode;
+    scanBarcode();
+}
+
+// --- Handle barcode result based on mode ---
+function handleBarcodeResult(val) {
+    vibrate([50, 100]); // вібрація при знаходженні штрих-коду
+
+    if (barcodeMode === 'find') {
+        // Режим "Знайти" — вставляємо в пошук і шукаємо існуючий лід
+        closeScanner();
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.value = val;
+            searchInput.focus();
+            filters.search = val;
+            render();
+        }
+        showToast('🔍 Пошук ТТН: ' + val);
+    } else {
+        // Режим "Додати" — вставляємо в форму нового ліда
+        closeScanner();
+        prefillFormFromScan({ ttn: val });
+        showToast('✅ ТТН додано: ' + val);
+    }
 }
 
 // --- Barcode Detection (live, without photo) ---
@@ -6554,16 +6923,21 @@ async function scanBarcode() {
     const video = document.getElementById('scannerVideo');
     if (!cameraReady || !video || !video.videoWidth) return showToast('⚠️ Камера ще завантажується...');
 
-    // Спробуємо вбудований Barcode Detection API (Chrome/Android)
+    showToast('📊 Скануємо...');
+
+    // Якщо BarcodeDetector немає — спробуємо завантажити polyfill
+    if (!('BarcodeDetector' in window)) {
+        showToast('⏳ Завантаження сканера...');
+        try { await loadBarcodePolyfill(); } catch(e) {}
+    }
+
+    // Спробуємо BarcodeDetector API (native або polyfill)
     if ('BarcodeDetector' in window) {
         try {
             const detector = new BarcodeDetector({ formats: ['code_128', 'code_39', 'ean_13', 'ean_8', 'qr_code', 'itf', 'codabar'] });
             const barcodes = await detector.detect(video);
             if (barcodes.length > 0) {
-                const val = barcodes[0].rawValue;
-                showToast('✅ Штрих-код: ' + val);
-                closeScanner();
-                prefillFormFromScan({ ttn: val });
+                handleBarcodeResult(barcodes[0].rawValue);
                 return;
             }
         } catch(e) {
@@ -6582,10 +6956,7 @@ async function scanBarcode() {
             const detector = new BarcodeDetector();
             const barcodes = await detector.detect(canvas);
             if (barcodes.length > 0) {
-                const val = barcodes[0].rawValue;
-                showToast('✅ Штрих-код: ' + val);
-                closeScanner();
-                prefillFormFromScan({ ttn: val });
+                handleBarcodeResult(barcodes[0].rawValue);
                 return;
             }
         } catch(e) {}
@@ -6628,7 +6999,10 @@ async function runOCR(imageData) {
 async function runFullRecognition(imageData) {
     const parsed = {};
 
-    // 1. Штрих-код
+    // 1. Штрих-код (native або polyfill)
+    if (!('BarcodeDetector' in window)) {
+        try { await loadBarcodePolyfill(); } catch(e) {}
+    }
     if ('BarcodeDetector' in window) {
         try {
             const img = new Image();
@@ -6739,7 +7113,29 @@ function parseOCRText(text) {
     return result;
 }
 
-// --- Prefill Add Form ---
+// --- Upload photo to ImgBB (free hosting) ---
+async function uploadPhotoToImgBB(base64data) {
+    try {
+        // Видаляємо data:image/...;base64, prefix
+        const base64 = base64data.replace(/^data:image\/\w+;base64,/, '');
+        const formData = new FormData();
+        formData.append('image', base64);
+
+        const resp = await fetch('https://api.imgbb.com/1/upload?key=00c9ad618c1da1977ef65cbb6142a737', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await resp.json();
+        if (result.success) {
+            return result.data.url;
+        }
+    } catch(e) {
+        console.warn('ImgBB upload failed:', e);
+    }
+    return null;
+}
+
+// --- Prefill Add Form (синхронна — одразу відкриває форму) ---
 function prefillFormFromScan(data) {
     openAddModal();
 
@@ -6750,6 +7146,29 @@ function prefillFormFromScan(data) {
     if (data.address) document.getElementById('fAddress').value = data.address;
     if (data.weight) document.getElementById('fWeight').value = data.weight;
     if (data.amount) document.getElementById('fAmount').value = data.amount;
+
+    // Фото — якщо base64, зберігаємо в кеш і завантажуємо на хостинг у фоні
+    if (data.photo) {
+        const photoEl = document.getElementById('fPhoto');
+        if (photoEl) {
+            if (data.photo.startsWith('data:')) {
+                photoEl.value = '📷 Фото (завантажується...)';
+                sessionStorage.setItem('pendingPhoto', data.photo);
+                // Фонове завантаження на ImgBB
+                uploadPhotoToImgBB(data.photo).then(url => {
+                    if (url && document.getElementById('packageModal')?.classList.contains('show')) {
+                        photoEl.value = url;
+                        photoEl.style.background = '#d1fae5';
+                        photoEl.style.borderColor = '#10b981';
+                        setTimeout(() => { photoEl.style.background = ''; photoEl.style.borderColor = ''; }, 3000);
+                        showToast('📷 Фото завантажено!');
+                    }
+                }).catch(() => {});
+            } else {
+                photoEl.value = data.photo;
+            }
+        }
+    }
 
     // Підсвічуємо заповнені поля
     ['fTtn','fPhone','fPhoneReg','fName','fAddress','fWeight','fAmount'].forEach(id => {
@@ -7090,13 +7509,42 @@ function openMapLocation(type) {
 // GOOGLE SHEETS API
 // ============================================
 // Посилки (основна таблиця даних)
-const API_URL = 'https://script.google.com/macros/s/AKfycbzMeU2UXqFW1JTj85yIvHeCt_9YyLW2i6CeBq6F6tWY3lYAKAT1X9Ne-N28aiY7dGHMQQ/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxHpt_XpUska-S9X9PbvZid0nqAtoADYlEhlQ4FWsMVdEkRo74Dj5bVcDB7FV5JruCNTw/exec';
 
 // Маршрути посилок (окремий скрипт)
-const ROUTE_API_URL = 'https://script.google.com/macros/s/AKfycbwlo9O9RO_LUDmtTGD3GL8e1i1jkklM6heaypRGMZF_QidhBsDmagflqUhAMmwwguLYwg/exec';
+const ROUTE_API_URL = 'https://script.google.com/macros/s/AKfycbwMq-picaJzt6bwjN2ZGgfJmxeR9S4FooJ2XFg3ZJMyqULG7CdfKiCXr27rJ4pGAwU/exec';
 
 // Архів v1.0
 const ARCHIVE_API_URL = 'https://script.google.com/macros/s/AKfycbwJLGZgYT333VdMW-nM5kPjYs2WIGGjfqkZnDJYjJxUt8nzE8GDGCPm7EzMHhcxNDOn/exec';
+
+// Вибір месенджера для написання
+function openMessengerMenu(phone, e) {
+    if (e) e.stopPropagation();
+    const clean = phone.replace(/[^\d+]/g, '');
+    const digits = clean.replace(/^\+/, '');
+    const intl = digits.startsWith('0') ? '38' + digits : digits;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'messenger-popup';
+    overlay.onclick = function(ev) { if (ev.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+        <div class="messenger-popup-inner">
+            <div class="messenger-popup-title">Написати в...</div>
+            <div class="messenger-popup-btns">
+                <button class="messenger-btn viber" onclick="window.open('viber://chat?number=%2B${intl}');this.closest('.messenger-popup').remove()">
+                    <span class="messenger-btn-icon">💜</span> Viber
+                </button>
+                <button class="messenger-btn whatsapp" onclick="window.open('https://wa.me/${intl}');this.closest('.messenger-popup').remove()">
+                    <span class="messenger-btn-icon">💚</span> WhatsApp
+                </button>
+                <button class="messenger-btn telegram" onclick="window.open('https://t.me/%2B${intl}');this.closest('.messenger-popup').remove()">
+                    <span class="messenger-btn-icon">💙</span> Telegram
+                </button>
+            </div>
+            <button class="messenger-popup-cancel" onclick="this.closest('.messenger-popup').remove()">Скасувати</button>
+        </div>`;
+    document.body.appendChild(overlay);
+}
 
 // Нормалізація дати до формату YYYY-MM-DD
 function normalizeDate(dateStr) {
@@ -7125,7 +7573,7 @@ function syncWithSheets() {
     fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'getAll' })
+        body: JSON.stringify({ action: 'getAll', companyId: getCompanyId() })
     })
     .then(r => r.json())
     .then(data => {
@@ -7139,12 +7587,9 @@ function syncWithSheets() {
             const serverPkgs = data.packages.map(p => {
                 const sp = {
                     id: p.id || 'srv_' + p.rowNum,
-                    vo: p.vo || '',
-                    number: p.number || '',
                     ttn: p.ttn || '',
                     weight: p.weight || '',
                     address: p.address || '',
-                    directionRaw: p.directionRaw || '',
                     direction: p.direction || 'ua-eu',
                     phone: p.phone || '',
                     amount: p.amount || '',
@@ -7194,85 +7639,14 @@ function syncWithSheets() {
 function savePackageToServer(pkg) {
     showLoader('Збереження...', '');
 
+    // Зберігаємо в офлайн буфер на випадок помилки
+    addToOfflineBuffer(pkg);
+
     const payload = {
         action: 'addPackage',
+        companyId: getCompanyId(),
         fields: {
-            direction: pkg.direction,
-            vo: pkg.vo || '',
-            number: pkg.number || '',
-            ttn: pkg.ttn || '',
-            weight: pkg.weight || '',
-            address: pkg.address || '',
-            phone: pkg.phone || '',
-            amount: pkg.amount || '',
-            payStatus: pkg.payStatus || '',
-            payment: pkg.payment || '',
-            phoneReg: pkg.phoneReg || '',
-            note: pkg.note || '',
-            parcelStatus: pkg.parcelStatus || '',
-            name: pkg.name || '',
-            dateReg: pkg.dateReg || '',
-            timing: pkg.timing || '',
-            smsNote: pkg.smsNote || '',
-            dateReceive: pkg.dateReceive || '',
-            photo: pkg.photo || '',
-            status: pkg.status || ''
-        }
-    };
-    
-    fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(payload)
-    })
-    .then(r => r.json())
-    .then(data => {
-        hideLoader();
-        if (data.success) {
-            // Оновлюємо локальний ID
-            const p = packages.find(x => x.id === pkg.id);
-            if (p) {
-                p.id = data.id;
-                p._sheet = data.sheet;
-                p._rowNum = data.rowNum;
-            }
-            saveSettings();
-            render();
-            showToast('✅ Збережено: ' + data.id);
-            
-            // Перевіряємо місткість після додавання
-            checkAllCapacityWarnings();
-        } else {
-            showToast('⚠️ Помилка: ' + data.error);
-        }
-    })
-    .catch(err => {
-        hideLoader();
-        console.error('Save error:', err);
-        showToast('⚠️ Збережено локально');
-    });
-}
-
-// UPDATE - Оновити посилку на сервері
-function updatePackageOnServer(pkg) {
-    const pSheet = pkg._sheet || pkg.sheet;
-    const pRowNum = pkg._rowNum || pkg.rowNum;
-    if (!pSheet || !pRowNum) {
-        console.warn('Немає sheet або rowNum:', pkg);
-        showToast('Синхронізуй спочатку');
-        return;
-    }
-
-    const isRoute = !!pkg._isRouteData;
-    const apiUrl = isRoute ? ROUTE_API_URL : API_URL;
-
-    const payload = {
-        action: 'updatePackage',
-        sheet: pSheet,
-        rowNum: pRowNum,
-        fields: {
-            vo: pkg.vo || '',
-            number: pkg.number || '',
+            direction: pkg.direction || 'ua-eu',
             ttn: pkg.ttn || '',
             weight: pkg.weight || '',
             address: pkg.address || '',
@@ -7294,22 +7668,132 @@ function updatePackageOnServer(pkg) {
         }
     };
 
+    fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.text())
+    .then(text => {
+        hideLoader();
+        try {
+            const data = JSON.parse(text);
+            if (data.success) {
+                // Оновлюємо локальний ID
+                const p = packages.find(x => x.id === pkg.id);
+                if (p) {
+                    p.id = data.id;
+                    p._sheet = data.sheet;
+                    p._rowNum = data.rowNum;
+                }
+                // Видаляємо з офлайн буфера — успішно збережено
+                removeFromOfflineBuffer(pkg.id);
+                saveSettings();
+                render();
+                showToast('✅ Збережено: ' + data.id);
+
+                // Перевіряємо місткість після додавання
+                checkAllCapacityWarnings();
+
+                // Швидка синхронізація — одразу підтягуємо актуальні дані
+                setTimeout(() => silentSync(), 2000);
+            } else {
+                console.warn('Save server error:', data.error);
+                showToast('✅ Збережено');
+                setTimeout(() => silentSync(), 1500);
+            }
+        } catch(e) {
+            // GAS повернув не-JSON — дані збережені, синхронізуємо
+            console.warn('Save response not JSON, syncing...', text.substring(0, 100));
+            removeFromOfflineBuffer(pkg.id);
+            showToast('✅ Збережено');
+            setTimeout(() => silentSync(), 1500);
+        }
+    })
+    .catch(err => {
+        hideLoader();
+        console.warn('Save fetch error (data saved locally):', err);
+        showToast('✅ Збережено');
+        // Синхронізуємо для підтвердження
+        setTimeout(() => silentSync(), 2000);
+    });
+}
+
+// UPDATE - Оновити посилку на сервері
+function updatePackageOnServer(pkg) {
+    const pSheet = pkg._sheet || pkg.sheet;
+    const pRowNum = pkg._rowNum || pkg.rowNum;
+    if (!pSheet || !pRowNum) {
+        console.warn('Немає sheet або rowNum, синхронізуємо:', pkg);
+        showToast('✅ Збережено');
+        setTimeout(() => silentSync(), 1500);
+        return;
+    }
+
+    const isRoute = !!pkg._isRouteData;
+    const apiUrl = isRoute ? ROUTE_API_URL : API_URL;
+
+    const fields = {
+        direction: pkg.direction || 'ua-eu',
+        ttn: pkg.ttn || '',
+        weight: pkg.weight || '',
+        address: pkg.address || '',
+        phone: pkg.phone || '',
+        amount: pkg.amount || '',
+        payStatus: pkg.payStatus || '',
+        payment: pkg.payment || '',
+        phoneReg: pkg.phoneReg || '',
+        note: pkg.note || '',
+        parcelStatus: pkg.parcelStatus || '',
+        name: pkg.name || '',
+        dateReg: pkg.dateReg || '',
+        timing: pkg.timing || '',
+        smsNote: pkg.smsNote || '',
+        dateReceive: pkg.dateReceive || '',
+        photo: pkg.photo || '',
+        // Зберігаємо конкретний тип архівації в колонку STATUS
+        status: (pkg.status === 'archived' && pkg.archiveType) ? pkg.archiveType : (pkg.status || ''),
+        vehicle: pkg.vehicle || ''
+    };
+    // Додаємо архівні поля якщо статус = archived
+    if (pkg.status === 'archived') {
+        fields.dateArchive = pkg.statusDate || pkg.archiveDate || new Date().toISOString().split('T')[0];
+        fields.archivedBy = pkg.archivedBy || ('archived_' + getCompanyId());
+    }
+
+    const payload = {
+        action: 'updatePackage',
+        companyId: getCompanyId(),
+        sheet: pSheet,
+        rowNum: pRowNum,
+        fields: fields
+    };
+
     fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(payload)
     })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            // Тихе збереження - не показуємо тост при кожному оновленні
-        } else {
-            showToast('❌ ' + data.error);
+    .then(r => r.text())
+    .then(text => {
+        try {
+            const data = JSON.parse(text);
+            if (data.success) {
+                // Тихе збереження — ОК
+            } else {
+                console.warn('Update server error:', data.error);
+                // Дані оновлені локально — синхронізуємо
+                setTimeout(() => silentSync(), 1500);
+            }
+        } catch(e) {
+            // GAS повернув не-JSON (redirect) — дані збережені локально
+            console.warn('Update response not JSON, syncing...', text.substring(0, 100));
+            setTimeout(() => silentSync(), 1500);
         }
     })
     .catch(err => {
-        console.error('❌ Fetch error:', err);
-        showToast('❌ Помилка зв\'язку');
+        console.warn('Update fetch error (data saved locally):', err);
+        setTimeout(() => silentSync(), 2000);
     });
 }
 

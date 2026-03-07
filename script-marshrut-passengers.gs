@@ -1,7 +1,7 @@
 // ============================================
-// ЮРА ТРАНСПОРТЕЙШН — МАРШРУТИ ПАСАЖИРИ v1.0
+// BOTI LOGISTICS — МАРШРУТИ ПАСАЖИРИ v1.1
 // Apps Script API для таблиці "Маршрут Пасажири"
-// ID: 1iKlD0Bj-5qB3Gc1d5ZBHscbRipcSe5xU7svqBfpB77Y
+// ID: 1fYO1ClIP26S4xYgcsT_0LVCWVrqkAL5MkehXvL-Yni0
 // ============================================
 //
 // ІНСТРУКЦІЯ:
@@ -18,7 +18,7 @@
 // КОНФІГУРАЦІЯ
 // ============================================
 
-var SPREADSHEET_ID = '1iKlD0Bj-5qB3Gc1d5ZBHscbRipcSe5xU7svqBfpB77Y';
+var SPREADSHEET_ID = '1fYO1ClIP26S4xYgcsT_0LVCWVrqkAL5MkehXvL-Yni0';
 
 // URL архівного скрипта (Crm_Arhiv_1.0)
 var ARCHIVE_API_URL = 'https://script.google.com/macros/s/AKfycbwJLGZgYT333VdMW-nM5kPjYs2WIGGjfqkZnDJYjJxUt8nzE8GDGCPm7EzMHhcxNDOn/exec';
@@ -72,9 +72,10 @@ var COL = {
   ARCHIVED_BY: 19,    // T — ARCHIVED_BY
   ARCHIVE_REASON: 20, // U — ARCHIVE_REASON
   SOURCE_SHEET: 21,   // V — SOURCE_SHEET
-  ARCHIVE_ID: 22      // W — ARCHIVE_ID
+  ARCHIVE_ID: 22,     // W — ARCHIVE_ID
+  COMPANY_ID: 23      // X — company_id
 };
-var TOTAL_COLS = 23;
+var TOTAL_COLS = 24;
 
 // Заголовки для нового аркуша
 var HEADERS = [
@@ -83,11 +84,25 @@ var HEADERS = [
   'Диспечер', 'ІД', 'Телефон Реєстратора', 'Вага', 'Автомобіль',
   'Таймінг', 'дата оформлення', 'Примітка',
   'Статус', 'DATE_ARCHIVE', 'ARCHIVED_BY', 'ARCHIVE_REASON',
-  'SOURCE_SHEET', 'ARCHIVE_ID'
+  'SOURCE_SHEET', 'ARCHIVE_ID', 'company_id'
 ];
 
 // Статуси для архівації
 var ARCHIVE_STATUSES = ['archived', 'refused', 'deleted', 'transferred'];
+
+// ============================================
+// Пошук колонки company_id по заголовку (1-й рядок)
+// Повертає індекс колонки або -1 якщо не знайдено
+// ============================================
+function findCompanyIdCol(sheet) {
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return -1;
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (var i = 0; i < headers.length; i++) {
+    if (String(headers[i]).trim().toLowerCase() === 'company_id') return i;
+  }
+  return -1;
+}
 
 // Службові аркуші — НЕ маршрути
 var EXCLUDE_SHEETS = ['Логи', 'Провірка розсилки'];
@@ -112,6 +127,7 @@ function doGet(e) {
   try {
     var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'health';
     var sheetParam = (e && e.parameter) ? (e.parameter.sheet || '') : '';
+    var companyIdParam = (e && e.parameter) ? (e.parameter.companyId || '') : '';
 
     switch (action) {
       case 'health':
@@ -125,10 +141,10 @@ function doGet(e) {
 
       case 'getPassengers':
         if (!sheetParam) return respond({ success: false, error: 'Не вказано маршрут (sheet)' });
-        return respond(getRoutePassengers({ sheetName: sheetParam }));
+        return respond(getRoutePassengers({ sheetName: sheetParam, companyId: companyIdParam }));
 
       case 'getAvailableRoutes':
-        return respond(getAvailableRoutes());
+        return respond(getAvailableRoutes(companyIdParam));
 
       default:
         return respond({ success: false, error: 'Невідома GET дія: ' + action });
@@ -146,6 +162,8 @@ function doPost(e) {
     var data = JSON.parse(e.postData.contents);
     var action = data.action;
     var payload = data.payload || data;
+    // Прокидуємо companyId в payload (фронтенд шле його в data, не в payload)
+    payload.companyId = payload.companyId || data.companyId || '';
 
     switch (action) {
       // --- ЧИТАННЯ ---
@@ -153,7 +171,7 @@ function doPost(e) {
         return respond(getRoutePassengers(payload));
 
       case 'getAvailableRoutes':
-        return respond(getAvailableRoutes());
+        return respond(getAvailableRoutes(payload.companyId));
 
       case 'checkRouteSheets':
         return respond(checkRouteSheets(payload));
@@ -191,7 +209,7 @@ function doPost(e) {
 
       // --- АРХІВАЦІЯ ---
       case 'archivePassengers':
-        return respond(archiveToExternal(payload));
+        return respond(changeStatus(payload, 'archived'));
 
       case 'restorePassengers':
         return respond(changeStatus(payload, 'work'));
@@ -228,6 +246,19 @@ function doPost(e) {
       case 'clearOldMailing':
         return respond(clearOldMailing(payload));
 
+      // --- РЕДАГУВАННЯ ---
+      case 'editPassenger':
+        return respond(editPassenger(payload));
+
+      // --- СТВОРЕННЯ ---
+      case 'addPassenger':
+        return respond(addPassengerToRoute(payload));
+
+      // --- МІГРАЦІЯ ---
+      case 'fixCompanyId':
+        if (!payload.companyId) return respond({ success: false, error: 'Не вказано companyId' });
+        return respond(fixMissingCompanyId(payload.companyId));
+
       // --- ДЕБАГ ---
       case 'getStructure':
         return respond(getStructure());
@@ -263,7 +294,12 @@ function getRoutePassengers(payload) {
       return { success: true, passengers: [], count: 0, sheetName: sheetName, stats: { total: 0 } };
     }
 
-    var readCols = Math.min(sheet.getLastColumn(), TOTAL_COLS);
+    // Шукаємо колонку company_id по заголовку
+    var compIdCol = findCompanyIdCol(sheet);
+    var companyId = payload.companyId || '';
+
+    var lastCol = sheet.getLastColumn();
+    var readCols = Math.max(lastCol, TOTAL_COLS);
     var dataRange = sheet.getRange(2, 1, lastRow - 1, readCols);
     var data = dataRange.getValues();
     var backgrounds = dataRange.getBackgrounds();
@@ -272,6 +308,12 @@ function getRoutePassengers(payload) {
     for (var i = 0; i < data.length; i++) {
       var row = data[i];
       if (!str(row[COL.NAME]) && !str(row[COL.PHONE])) continue;
+
+      // Фільтр по company_id
+      if (companyId && compIdCol !== -1) {
+        var rowCompanyId = str(row[compIdCol]).toLowerCase();
+        if (rowCompanyId !== companyId.toLowerCase()) continue;
+      }
 
       // Статус водія (з Відмітка + колір рядка)
       var driverStatus = resolveDriverStatus(row, backgrounds[i]);
@@ -336,7 +378,7 @@ function getRoutePassengers(payload) {
 // ============================================
 // getAvailableRoutes — Список маршрутних аркушів
 // ============================================
-function getAvailableRoutes() {
+function getAvailableRoutes(companyId) {
   try {
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     var sheets = ss.getSheets();
@@ -352,7 +394,22 @@ function getAvailableRoutes() {
       }
       if (isExcluded) continue;
 
-      var count = Math.max(0, sheets[i].getLastRow() - 1);
+      var lastRow = sheets[i].getLastRow();
+      if (lastRow < 2) continue;
+
+      // Фільтр по company_id — показуємо тільки маршрути де є рядки з цим company_id
+      var count = lastRow - 1;
+      if (companyId) {
+        var compIdCol = findCompanyIdCol(sheets[i]);
+        if (compIdCol === -1) continue; // Немає колонки company_id — не показуємо
+        var colData = sheets[i].getRange(2, compIdCol + 1, lastRow - 1, 1).getValues();
+        count = 0;
+        for (var r = 0; r < colData.length; r++) {
+          if (String(colData[r][0]).trim().toLowerCase() === companyId.toLowerCase()) count++;
+        }
+        if (count === 0) continue; // Немає рядків для цієї компанії
+      }
+
       routes.push({
         name: name,
         type: 'passenger',
@@ -373,6 +430,7 @@ function getAvailableRoutes() {
 function checkRouteSheets(payload) {
   try {
     var vehicleNames = payload.vehicleNames || [];
+    var companyId = payload.companyId || '';
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     var existing = [];
 
@@ -380,11 +438,27 @@ function checkRouteSheets(payload) {
       var sheetName = vehicleNames[i];
       var sheet = ss.getSheetByName(sheetName);
       if (sheet && sheet.getLastRow() > 1) {
-        existing.push({
-          vehicle: vehicleNames[i],
-          sheet: sheetName,
-          count: sheet.getLastRow() - 1
-        });
+        var count = sheet.getLastRow() - 1;
+
+        // Фільтр по company_id — рахуємо тільки записи цієї компанії
+        if (companyId) {
+          var compIdCol = findCompanyIdCol(sheet);
+          if (compIdCol !== -1) {
+            var colData = sheet.getRange(2, compIdCol + 1, count, 1).getValues();
+            count = 0;
+            for (var r = 0; r < colData.length; r++) {
+              if (String(colData[r][0]).trim().toLowerCase() === companyId.toLowerCase()) count++;
+            }
+          }
+        }
+
+        if (count > 0) {
+          existing.push({
+            vehicle: vehicleNames[i],
+            sheet: sheetName,
+            count: count
+          });
+        }
       }
     }
 
@@ -432,24 +506,49 @@ function copyToRoute(payload) {
         sheet.setFrozenRows(1);
       }
 
-      // Обробка конфліктів
+      // Обробка конфліктів (тільки для рядків поточної компанії)
       var lastRow = sheet.getLastRow();
       if (lastRow > 1 && conflictAction !== 'add') {
+        var companyId = payload.companyId || '';
+        var compIdCol = findCompanyIdCol(sheet);
+
         if (conflictAction === 'clear') {
-          totalCleared += lastRow - 1;
-          sheet.deleteRows(2, lastRow - 1);
+          // Видаляємо тільки рядки цієї компанії (знизу вгору щоб не зсувались індекси)
+          if (companyId && compIdCol !== -1) {
+            var allData = sheet.getRange(2, compIdCol + 1, lastRow - 1, 1).getValues();
+            for (var cr = allData.length - 1; cr >= 0; cr--) {
+              if (String(allData[cr][0]).trim().toLowerCase() === companyId.toLowerCase()) {
+                sheet.deleteRow(cr + 2);
+                totalCleared++;
+              }
+            }
+          } else {
+            totalCleared += lastRow - 1;
+            sheet.deleteRows(2, lastRow - 1);
+          }
         } else if (conflictAction === 'archive') {
-          totalArchived += lastRow - 1;
-          // Ставимо статус "archived" на старі рядки
           var dateNow = Utilities.formatDate(new Date(), 'Europe/Kiev', 'yyyy-MM-dd');
-          var archiveRange = sheet.getRange(2, COL.STATUS + 1, lastRow - 1, 1);
-          var archVals = [];
-          for (var a = 0; a < lastRow - 1; a++) archVals.push(['archived']);
-          archiveRange.setValues(archVals);
-          var dateRange = sheet.getRange(2, COL.DATE_ARCHIVE + 1, lastRow - 1, 1);
-          var dateVals = [];
-          for (var d = 0; d < lastRow - 1; d++) dateVals.push([dateNow]);
-          dateRange.setValues(dateVals);
+          if (companyId && compIdCol !== -1) {
+            // Архівуємо тільки рядки цієї компанії
+            var allData2 = sheet.getRange(2, compIdCol + 1, lastRow - 1, 1).getValues();
+            for (var ar = 0; ar < allData2.length; ar++) {
+              if (String(allData2[ar][0]).trim().toLowerCase() === companyId.toLowerCase()) {
+                sheet.getRange(ar + 2, COL.STATUS + 1).setValue('archived');
+                sheet.getRange(ar + 2, COL.DATE_ARCHIVE + 1).setValue(dateNow);
+                totalArchived++;
+              }
+            }
+          } else {
+            totalArchived += lastRow - 1;
+            var archiveRange = sheet.getRange(2, COL.STATUS + 1, lastRow - 1, 1);
+            var archVals = [];
+            for (var a = 0; a < lastRow - 1; a++) archVals.push(['archived']);
+            archiveRange.setValues(archVals);
+            var dateRange = sheet.getRange(2, COL.DATE_ARCHIVE + 1, lastRow - 1, 1);
+            var dateVals = [];
+            for (var d = 0; d < lastRow - 1; d++) dateVals.push([dateNow]);
+            dateRange.setValues(dateVals);
+          }
         }
       }
 
@@ -479,6 +578,7 @@ function copyToRoute(payload) {
         newRow[COL.NOTE] = pass.note || '';
         newRow[COL.STATUS] = 'new';
         newRow[COL.SOURCE_SHEET] = pass.sourceSheet || pass.sheet || '';
+        newRow[COL.COMPANY_ID] = payload.companyId || '';
 
         rows.push(newRow);
       }
@@ -819,7 +919,7 @@ function handleDriverStatusUpdate(data) {
 function changeStatus(payload, newStatus) {
   try {
     var items = payload.passengers || payload.items || [];
-    var note = payload.note || '';
+    var note = payload.note || payload.reason || '';
     if (items.length === 0) return { success: false, error: 'Немає пасажирів' };
 
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -842,10 +942,17 @@ function changeStatus(payload, newStatus) {
       sheet.getRange(rowNum, COL.STATUS + 1).setValue(newStatus);
 
       if (ARCHIVE_STATUSES.indexOf(newStatus) !== -1) {
+        var companyId = payload.companyId || '';
         sheet.getRange(rowNum, COL.DATE_ARCHIVE + 1).setValue(dateNow);
-        sheet.getRange(rowNum, COL.ARCHIVED_BY + 1).setValue(user);
+        // Записуємо хто архівував у форматі: archived_компанія
+        var archivedBy = companyId ? ('archived_' + companyId) : user;
+        sheet.getRange(rowNum, COL.ARCHIVED_BY + 1).setValue(archivedBy);
         if (note) {
           sheet.getRange(rowNum, COL.ARCHIVE_REASON + 1).setValue(note);
+        }
+        // Записуємо companyId щоб точно був в рядку
+        if (companyId) {
+          sheet.getRange(rowNum, COL.COMPANY_ID + 1).setValue(companyId);
         }
       }
 
@@ -863,6 +970,8 @@ function changeStatus(payload, newStatus) {
     return {
       success: true,
       changed: changed,
+      count: changed,
+      archived: newStatus === 'archived' ? changed : 0,
       total: items.length,
       status: newStatus,
       errors: errors.length > 0 ? errors : undefined
@@ -1361,6 +1470,116 @@ function sendToArchive(payload) {
 }
 
 // ============================================
+// addPassengerToRoute — Додати пасажира з Drivers UI
+// ============================================
+// ============================================
+// editPassenger — Редагування пасажира водієм
+// ============================================
+function editPassenger(payload) {
+  try {
+    var sheetName = payload.vehicle || payload.sheetName;
+    var rowNum = payload.rowNum;
+    var fields = payload.fields || {};
+
+    if (!sheetName || !rowNum) {
+      return { success: false, error: 'Не вказано аркуш або номер рядка' };
+    }
+
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      return { success: false, error: 'Аркуш не знайдено: ' + sheetName };
+    }
+
+    var row = parseInt(rowNum);
+    if (row < 2 || row > sheet.getLastRow()) {
+      return { success: false, error: 'Невірний номер рядка: ' + rowNum };
+    }
+
+    // Маппінг полів з фронтенду на колонки таблиці
+    var fieldMap = {
+      name:    COL.NAME,
+      phone:   COL.PHONE,
+      from:    COL.FROM,
+      to:      COL.TO,
+      date:    COL.DATE,
+      seats:   COL.SEATS,
+      weight:  COL.WEIGHT,
+      payment: COL.PAYMENT,
+      timing:  COL.TIMING,
+      note:    COL.NOTE
+    };
+
+    var updated = [];
+    for (var key in fields) {
+      if (fields.hasOwnProperty(key) && fieldMap.hasOwnProperty(key)) {
+        var colIndex = fieldMap[key];
+        sheet.getRange(row, colIndex + 1).setValue(fields[key]);
+        updated.push(key);
+      }
+    }
+
+    writeLog('editPassenger', sheetName, row, 'edited',
+      'Водій змінив: ' + updated.join(', '));
+
+    return { success: true, updated: updated, rowNum: row };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+function addPassengerToRoute(payload) {
+  try {
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheetName = payload.vehicle || payload.sheetName;
+    if (!sheetName) {
+      return { success: false, error: 'Не вказано маршрут (vehicle/sheetName)' };
+    }
+
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      return { success: false, error: 'Аркуш не знайдено: ' + sheetName };
+    }
+
+    var today = Utilities.formatDate(new Date(), 'Europe/Kiev', 'yyyy-MM-dd');
+    var newId = 'drv_' + new Date().getTime();
+
+    var newRow = new Array(TOTAL_COLS);
+    for (var i = 0; i < TOTAL_COLS; i++) newRow[i] = '';
+
+    newRow[COL.DATE] = payload.date || '';
+    newRow[COL.FROM] = payload.from || '';
+    newRow[COL.TO] = payload.to || '';
+    newRow[COL.SEATS] = payload.seats || 1;
+    newRow[COL.NAME] = payload.name || '';
+    newRow[COL.PHONE] = payload.phone || '';
+    newRow[COL.DISPATCHER] = 'Driver';
+    newRow[COL.ID] = newId;
+    newRow[COL.VEHICLE] = sheetName;
+    newRow[COL.DATE_REG] = today;
+    newRow[COL.NOTE] = payload.note || '';
+    newRow[COL.STATUS] = 'new';
+
+    newRow[COL.COMPANY_ID] = payload.companyId || '';
+
+    sheet.appendRow(newRow);
+    var newRowNum = sheet.getLastRow();
+
+    writeLog('addPassenger', sheetName, newRowNum, 'new',
+      'ПіБ: ' + (payload.name || '') + ' | Тел: ' + (payload.phone || '') + ' | Driver UI');
+
+    return {
+      success: true,
+      sheet: sheetName,
+      rowNum: newRowNum,
+      id: newId
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ============================================
 // ЛОГУВАННЯ — пише в архівну таблицю, аркуш "Логи"
 // ============================================
 var ARCHIVE_SS_ID_LOG = '1Kmf6NF1sJUi-j3SamrhUqz337pcZSvZCUkGxBzari6U';
@@ -1609,7 +1828,97 @@ function onOpen() {
     .addItem('Список маршрутів', 'menuRoutes')
     .addItem('Структура', 'menuStructure')
     .addItem('Тест архів', 'menuTestArchive')
+    .addItem('⚠️ Заповнити company_id', 'menuFixCompanyId')
     .addToUi();
+}
+
+// ============================================
+// fixMissingCompanyId — Одноразова міграція
+// Заповнює порожні company_id у всіх маршрутних аркушах
+// Запустити: Меню → Маршрути Пасажири → Заповнити company_id
+// або через API: action: 'fixCompanyId', companyId: 'ваш_id'
+// ============================================
+function fixMissingCompanyId(companyId) {
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheets = ss.getSheets();
+  var totalFixed = 0;
+  var sheetsFixed = [];
+
+  for (var i = 0; i < sheets.length; i++) {
+    var name = sheets[i].getName();
+
+    // Пропускаємо службові
+    var isExcluded = false;
+    for (var e = 0; e < EXCLUDE_SHEETS.length; e++) {
+      if (name === EXCLUDE_SHEETS[e]) { isExcluded = true; break; }
+    }
+    if (isExcluded) continue;
+
+    var sheet = sheets[i];
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) continue;
+
+    // Перевіряємо чи є колонка company_id — якщо ні, додаємо заголовок
+    var compIdCol = findCompanyIdCol(sheet);
+    if (compIdCol === -1) {
+      // Додаємо заголовок company_id в наступну колонку
+      var lastCol = sheet.getLastColumn();
+      sheet.getRange(1, lastCol + 1).setValue('company_id');
+      sheet.getRange(1, lastCol + 1)
+        .setBackground('#1a1a2e')
+        .setFontColor('#ffffff')
+        .setFontWeight('bold');
+      compIdCol = lastCol; // 0-based index
+    }
+
+    // Читаємо колонку company_id
+    var colData = sheet.getRange(2, compIdCol + 1, lastRow - 1, 1).getValues();
+    var fixedInSheet = 0;
+
+    for (var r = 0; r < colData.length; r++) {
+      if (!String(colData[r][0]).trim()) {
+        colData[r][0] = companyId;
+        fixedInSheet++;
+      }
+    }
+
+    if (fixedInSheet > 0) {
+      sheet.getRange(2, compIdCol + 1, lastRow - 1, 1).setValues(colData);
+      totalFixed += fixedInSheet;
+      sheetsFixed.push(name + ': ' + fixedInSheet);
+    }
+  }
+
+  writeLog('fixMissingCompanyId', 'migration', 0,
+    'fixed: ' + totalFixed, sheetsFixed.join(', '));
+
+  return {
+    success: true,
+    totalFixed: totalFixed,
+    sheetsFixed: sheetsFixed
+  };
+}
+
+function menuFixCompanyId() {
+  var ui = SpreadsheetApp.getUi();
+  var result = ui.prompt(
+    'Заповнити company_id',
+    'Введіть company_id для всіх існуючих записів без company_id:',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (result.getSelectedButton() !== ui.Button.OK) return;
+  var companyId = result.getResponseText().trim();
+  if (!companyId) {
+    ui.alert('Помилка', 'company_id не може бути порожнім', ui.ButtonSet.OK);
+    return;
+  }
+
+  var fixResult = fixMissingCompanyId(companyId);
+  ui.alert('Результат',
+    'Заповнено ' + fixResult.totalFixed + ' записів\n\n' +
+    (fixResult.sheetsFixed.length > 0 ? fixResult.sheetsFixed.join('\n') : 'Нічого не змінено'),
+    ui.ButtonSet.OK);
 }
 
 function menuRoutes() {

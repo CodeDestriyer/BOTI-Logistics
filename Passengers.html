@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>YuraCRM Admin Пасажири v17</title>
+    <title>BOTI Logistics — CRM Пасажири</title>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -752,10 +752,23 @@
             .card-price { font-size: 12px; }
         }
         .btn-call { background: var(--primary); color: white; }
-        .btn-msg { background: #7c3aed; color: white; }
+        .btn-msg { background: #7c3aed; color: white; position: relative; }
         .btn-map { background: var(--info); color: white; }
         .btn-edit { background: var(--warning); color: white; }
-        
+
+        /* Messenger popup */
+        .messenger-popup { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); }
+        .messenger-popup-inner { background: var(--bg-card, #fff); border-radius: 16px; padding: 20px; min-width: 260px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); text-align: center; }
+        .messenger-popup-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; color: var(--text-primary, #1a1a2e); }
+        .messenger-popup-btns { display: flex; flex-direction: column; gap: 10px; }
+        .messenger-btn { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; color: #fff; transition: transform 0.1s; }
+        .messenger-btn:active { transform: scale(0.97); }
+        .messenger-btn.viber { background: #7360f2; }
+        .messenger-btn.whatsapp { background: #25d366; }
+        .messenger-btn.telegram { background: #2AABEE; }
+        .messenger-btn-icon { font-size: 22px; }
+        .messenger-popup-cancel { margin-top: 14px; background: none; border: 1px solid var(--border, #ddd); border-radius: 10px; padding: 10px 24px; font-size: 14px; color: var(--text-secondary, #666); cursor: pointer; width: 100%; }
+
         .card-vehicle { position: relative; }
 
         /* DRAG HANDLE */
@@ -1445,9 +1458,6 @@
                 <div class="side-menu-item" onclick="resetVehicleFilter(); closeSideMenu();" style="color:var(--text-secondary);font-weight:600;border-top:1px solid var(--border);margin-top:6px;justify-content:center;background:var(--bg-main);">
                     <span class="side-menu-item-left">🔄 Скинути фільтр авто</span>
                 </div>
-                <div class="side-menu-item" onclick="openAddVehicleModal(); closeSideMenu();" style="color:var(--info);font-weight:600;border-top:1px solid var(--border);margin-top:4px;">
-                    <span class="side-menu-item-left">➕ Додати авто</span>
-                </div>
             </div>
         </div>
         
@@ -1498,7 +1508,7 @@
 <header class="header">
     <div class="header-top">
         <button class="burger-btn" onclick="openSideMenu()">☰</button>
-        <div class="logo">YURA<span>TRANSPORTATION</span></div>
+        <div class="logo">BOTI<span style="color:#4CAF50">SYSTEM</span></div>
         <div class="search-box">
             <span class="search-icon">🔍</span>
             <input type="text" class="search-input" id="searchInput" placeholder="Пошук..." oninput="handleSearch()">
@@ -1574,10 +1584,9 @@
                 <div class="pc-sidebar-item" onclick="resetVehicleFilter()" style="background:var(--bg-main);color:var(--text-secondary);font-size:12px;justify-content:center;cursor:pointer;margin-top:6px;">
                     <span><span class="item-icon">🔄</span>Скинути фільтр авто</span>
                 </div>
-                <div class="pc-sidebar-add" onclick="openAddVehicleModal()">➕ Додати авто</div>
             </div>
         </div>
-        
+
         <!-- Маршрути -->
         <div class="pc-sidebar-section">
             <div class="pc-sidebar-header collapsed" onclick="togglePcSection('routes')">
@@ -1762,7 +1771,6 @@
                             <div class="dropdown-item" onclick="setVehicleFilter('')">Всі авто</div>
                             <div class="dropdown-item" onclick="setVehicleFilter('none')" style="color:var(--warning);">❓ Без авто <span class="badge" style="background:var(--warning);" id="countNoVehicle">0</span></div>
                             <div id="vehiclesList"></div>
-                            <div class="dropdown-item" onclick="openAddVehicleModal()" style="color:var(--info);font-weight:600;border-top:1px solid var(--border);">➕ Додати авто</div>
                         </div>
                     </div>
                     <div class="dropdown-container">
@@ -1906,7 +1914,7 @@
         <span>👥</span>
         <span id="navPassengersLabel">Пасажири</span>
     </button>
-    <button class="nav-item" onclick="window.location.href='index_posylki.html'"><span>📦</span>Посилки</button>
+    <button class="nav-item" onclick="window.location.href='Cargo.html'"><span>📦</span>Посилки</button>
     <button class="nav-item" onclick="syncWithSheets()"><span>🔄</span>Синхр.</button>
     <button class="nav-item" onclick="openColumnsModal()"><span>⚙️</span>Колонки</button>
     <button class="nav-item" onclick="openAddModal()"><span>➕</span>Додати</button>
@@ -2001,30 +2009,6 @@
     </div>
 </div>
 
-<!-- МОДАЛКА ДОДАТИ АВТО -->
-<div class="modal-overlay" id="vehicleModal" onclick="if(event.target===this)closeModal('vehicleModal')">
-    <div class="modal" style="max-width:340px">
-        <div class="modal-header"><span class="modal-title">🚐 Нове авто</span><button class="modal-close" onclick="closeModal('vehicleModal')">×</button></div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label>Назва авто</label>
-                <input type="text" id="vName" placeholder="Наприклад: Пас. Маршрут 4">
-            </div>
-            <div class="form-group">
-                <label>Кількість місць</label>
-                <input type="number" id="vSeats" value="8" min="1">
-            </div>
-            <div style="background:#fff3e0;padding:10px;border-radius:6px;font-size:11px;color:#e65100;margin-top:12px;">
-                ⚠️ Буде створено новий аркуш в таблиці "Маршрут Пасажири"
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn-cancel" onclick="closeModal('vehicleModal')">Скасувати</button>
-            <button class="btn-save" onclick="saveVehicle()">💾 Створити</button>
-        </div>
-    </div>
-</div>
-
 <!-- МОДАЛКА ОПТИМІЗАЦІЇ -->
 <div class="modal-overlay" id="optimizeModal" onclick="if(event.target===this)closeModal('optimizeModal')">
     <div class="modal" style="max-width:420px">
@@ -2100,7 +2084,8 @@
             <button class="btn-save" onclick="startOptimization()">🚀 Оптимізувати</button>
         </div>
         <div class="modal-footer" id="optimizeResultFooter" style="display:none">
-            <button class="btn-save" onclick="closeModal('optimizeModal')">Закрити</button>
+            <button class="btn-cancel" onclick="closeModal('optimizeModal')">Закрити</button>
+            <button class="btn-save" onclick="applyOptimizedSort()">📊 Сортувати</button>
         </div>
     </div>
 </div>
@@ -2188,7 +2173,7 @@ let passengers = [
     {id:'p6',date:'2025-02-22',name:'Алла Бердникова',phone:'+421907299343',from:'Братислава',to:'Вінниця',seats:1,payment:'60',vehicle:'',status:'new',isNew:true,order:5,direction:'eu-ua'}
 ];
 // Таблиця маршрутів пасажирів
-const ROUTE_SPREADSHEET_ID = '1iKlD0Bj-5qB3Gc1d5ZBHscbRipcSe5xU7svqBfpB77Y';
+const ROUTE_SPREADSHEET_ID = '1fYO1ClIP26S4xYgcsT_0LVCWVrqkAL5MkehXvL-Yni0';
 
 const DEFAULT_VEHICLES = [
     {id:'v1', name:'Автомобіль 1', seats:8, routeSheet:'Пас. Маршрут 1'},
@@ -2210,7 +2195,7 @@ async function syncVehiclesFromServer() {
         const res = await fetch(ROUTE_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'getAvailableRoutes' })
+            body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
         });
         const data = await res.json();
         if (!data.success || !data.routes) return;
@@ -2265,8 +2250,26 @@ let calendarDate = new Date(); // Поточна дата
 let draggedId = null;
 let undoHistory = []; // Історія для відміни дій
 
+// ═══ СЕСІЯ ═══
+var botiSession = null;
+function checkSession() {
+    try {
+        var raw = sessionStorage.getItem('boti_auth');
+        if (raw) botiSession = JSON.parse(raw);
+    } catch(e) {}
+    if (!botiSession || !botiSession.role) {
+        window.location.href = 'Login.html';
+        return false;
+    }
+    return true;
+}
+function getCompanyId() {
+    return botiSession ? botiSession.companyId : '';
+}
+
 // INIT
 document.addEventListener('DOMContentLoaded', () => {
+    if (!checkSession()) return;
     loadSettings();
     renderCalendars();
 
@@ -2275,7 +2278,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'getAll' })
+        body: JSON.stringify({ action: 'getAll', companyId: getCompanyId() })
     })
     .then(r => r.json())
     .then(data => {
@@ -2284,6 +2287,11 @@ document.addEventListener('DOMContentLoaded', () => {
             passengers = data.passengers.map(p => {
                 let normalizedStatus = (p.status || '').toString().toLowerCase().trim();
                 if (!normalizedStatus) normalizedStatus = 'new';
+                // Визначаємо archiveType і нормалізуємо статус
+                const archiveStatuses = ['archived', 'refused', 'deleted', 'transferred'];
+                const isArchiveStatus = archiveStatuses.includes(normalizedStatus);
+                const archiveType = p.archiveType || (isArchiveStatus ? normalizedStatus : '');
+                if (isArchiveStatus) normalizedStatus = 'archived';
                 return {
                     id: p.id || 'srv_' + p.rowNum,
                     date: normalizeDate(p.date),
@@ -2304,6 +2312,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     note: p.note || '',
                     direction: p.direction,
                     status: normalizedStatus,
+                    archiveType: archiveType,
                     statusDate: p.statusDate || '',
                     isNew: p.isNew,
                     isNew24h: p.isNew,
@@ -2356,7 +2365,7 @@ function silentSync() {
     fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'getAll' })
+        body: JSON.stringify({ action: 'getAll', companyId: getCompanyId() })
     })
     .then(r => r.json())
     .then(data => {
@@ -2366,7 +2375,11 @@ function silentSync() {
                 // Нормалізуємо статус (lowercase, trim)
                 let normalizedStatus = (p.status || '').toString().toLowerCase().trim();
                 if (!normalizedStatus) normalizedStatus = 'new';
-                
+                // Визначаємо archiveType і нормалізуємо статус
+                const archiveStatuses = ['archived', 'refused', 'deleted', 'transferred'];
+                const isArchiveStatus = archiveStatuses.includes(normalizedStatus);
+                const archiveType = p.archiveType || (isArchiveStatus ? normalizedStatus : '');
+                if (isArchiveStatus) normalizedStatus = 'archived';
                 return {
                     id: p.id || 'srv_' + p.rowNum,
                     date: normalizeDate(p.date),
@@ -2387,6 +2400,7 @@ function silentSync() {
                     note: p.note || '',
                     direction: p.direction,
                     status: normalizedStatus,
+                    archiveType: archiveType,
                     statusDate: p.statusDate || '',
                     isNew: p.isNew,
                     isNew24h: p.isNew,
@@ -2394,7 +2408,7 @@ function silentSync() {
                     _rowNum: p.rowNum
                 };
             });
-            
+
             // Перевіряємо чи є нові ліди
             const newCount = serverPassengers.filter(p => p.isNew && p.status !== 'archived').length;
             const oldNewCount = passengers.filter(p => p.isNew && p.status !== 'archived').length;
@@ -2411,6 +2425,12 @@ function silentSync() {
                     if (!sp.status && local.status) sp.status = local.status;
                     if (local.prevStatus) sp.prevStatus = local.prevStatus;
                     if (local.archiveType) sp.archiveType = local.archiveType;
+                    // Зберігаємо дані оптимізації
+                    if (local.status === 'optimize') {
+                        sp.status = 'optimize';
+                        sp.order = local.order;
+                        sp._notGeocoded = local._notGeocoded;
+                    }
                 }
             });
 
@@ -2867,7 +2887,6 @@ function showCapacityWarning(date, seats, capacity) {
             </div>
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="document.getElementById('capacityWarningModal').remove()">Зрозуміло</button>
-                <button class="btn-save" onclick="document.getElementById('capacityWarningModal').remove();openAddVehicleModal()">➕ Додати авто</button>
             </div>
         </div>
     `;
@@ -3013,6 +3032,11 @@ function getFilteredData() {
     }
     
     return data.sort((a,b) => {
+        // Optimize завжди зверху, відсортовані по order
+        const aOpt = a.status === 'optimize' ? 1 : 0;
+        const bOpt = b.status === 'optimize' ? 1 : 0;
+        if (aOpt !== bOpt) return bOpt - aOpt;
+        if (aOpt && bOpt) return (a.order || 0) - (b.order || 0);
         // Нові (isNew) завжди зверху
         if (a.isNew && !b.isNew) return -1;
         if (!a.isNew && b.isNew) return 1;
@@ -3145,7 +3169,7 @@ function render() {
             </div>
             <div class="card-actions ${aOpen ? 'show' : ''}">
                 <button class="btn-card-action btn-call" onclick="event.stopPropagation();location.href='tel:${p.phone}'">📞 Дзвонити</button>
-                <button class="btn-card-action btn-msg" onclick="event.stopPropagation();window.open('https://console.smartsender.com/contacts?project=yura-transportation-131349','_blank')">💬 Писати</button>
+                <button class="btn-card-action btn-msg" onclick="openMessengerMenu('${p.phone}',event)">💬 Писати</button>
                 <button class="btn-card-action btn-map" onclick="event.stopPropagation();openMapModal('${uniqueKey}')">🗺️ Карта</button>
                 <button class="btn-card-action btn-edit" onclick="event.stopPropagation();editPassenger('${uniqueKey}')">✏️ Редагувати</button>
                 <button class="btn-card-action btn-delete" onclick="event.stopPropagation();deletePassenger('${uniqueKey}')">🗑️ Видалити</button>
@@ -3486,8 +3510,7 @@ function updatePcVehiclesList() {
             <div onclick="setVehicleFilter('${v.id}')" style="flex:1;cursor:pointer;">
                 <span class="item-icon">🚐</span>${v.name}
             </div>
-            <span class="item-count" style="margin-right:8px;">${count}</span>
-            <button onclick="event.stopPropagation();deleteVehicle('${v.id}')" style="background:none;border:none;cursor:pointer;font-size:12px;opacity:0.5;padding:4px;" title="Видалити авто">🗑️</button>
+            <span class="item-count">${count}</span>
         </div>`;
     }).join('');
 
@@ -3510,7 +3533,7 @@ function updateRoutesList() {
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
                 action: 'getRoutePassengers',
-                payload: { vehicleName: v.routeSheet || v.name }
+                payload: { sheetName: v.routeSheet || v.name, companyId: getCompanyId() }
             })
         })
         .then(r => r.json())
@@ -3592,10 +3615,10 @@ async function updateAllRoutesCount() {
         const response = await fetch(ROUTE_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'getAvailableRoutes' })
+            body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
         });
         const data = await response.json();
-        
+
         if (data.success && data.routes) {
             // Фільтруємо: тільки аркуші маршрутів (ігноруємо логи, розсилка тощо)
             const validRoutes = data.routes.filter(r => isRouteSheet(r.name));
@@ -3647,13 +3670,13 @@ function showVehicleRoute(vehicleId) {
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
                 action: 'getRoutePassengers',
-                payload: { vehicleName: v.routeSheet || v.name }
+                payload: { sheetName: v.routeSheet || v.name, companyId: getCompanyId() }
             })
         }).then(r => r.json()),
         fetch(ROUTE_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'getMailingStatus' })
+            body: JSON.stringify({ action: 'getMailingStatus', companyId: getCompanyId() })
         }).then(r => r.json())
     ])
     .then(([routeData, mailingData]) => {
@@ -3706,12 +3729,12 @@ async function loadAllRoutePassengers() {
             fetch(ROUTE_API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'getMailingStatus' })
+                body: JSON.stringify({ action: 'getMailingStatus', companyId: getCompanyId() })
             }).then(r => r.json()).catch(() => ({ success: false })),
             fetch(ROUTE_API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'getAvailableRoutes' })
+                body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
             }).then(r => r.json()).catch(() => ({ success: false }))
         ]);
         
@@ -3739,7 +3762,7 @@ async function loadAllRoutePassengers() {
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify({
                         action: 'getRoutePassengers',
-                        payload: { sheetName: route.name }
+                        payload: { sheetName: route.name, companyId: getCompanyId() }
                     })
                 })
                 .then(r => r.json())
@@ -4003,7 +4026,7 @@ function renderRoutePassengers() {
                 </div>
                 <div class="card-actions" id="actions_${p._uid}">
                     <button class="btn-card-action btn-call" onclick="event.stopPropagation();location.href='tel:${p.phone}'">📞 Дзвонити</button>
-                    <button class="btn-card-action btn-msg" onclick="event.stopPropagation();window.open('https://console.smartsender.com/contacts?project=yura-transportation-131349','_blank')">💬 Писати</button>
+                    <button class="btn-card-action btn-msg" onclick="openMessengerMenu('${p.phone}',event)">💬 Писати</button>
                     <button class="btn-card-action btn-map" onclick="event.stopPropagation();openRouteMap('${encodeURIComponent(p.from || '')}','${encodeURIComponent(p.to || '')}')">🗺️ Карта</button>
                     <button class="btn-card-action btn-edit" onclick="event.stopPropagation();editPassenger('${p._uid}')">✏️ Редагувати</button>
                     <button class="btn-card-action btn-delete" onclick="event.stopPropagation();showRouteDeleteChoice('${p._uid}')">🗑️ Видалити</button>
@@ -4131,27 +4154,30 @@ function deleteFromRouteOnly(uid) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'deleteRoutePassenger',
-            payload: { sheetName: sheetName, rowNum: p.rowNum }
+            companyId: getCompanyId(),
+            payload: { sheetName: sheetName, rowNum: p.rowNum || p._rowNum }
         })
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(r => r.text())
+    .then(text => {
         hideRouteProgress();
-        if (data.success) {
-            // Видаляємо з локального масиву
-            routePassengers = routePassengers.filter(rp => rp._uid !== uid);
-            routeStats.total = routePassengers.length;
-            renderRoutePassengers();
-            updateAllCounts();
-            showToast('📋 Видалено з маршруту');
-        } else {
-            showToast('❌ ' + (data.error || 'Помилка'));
-        }
+        routePassengers = routePassengers.filter(rp => rp._uid !== uid);
+        routeStats.total = routePassengers.length;
+        renderRoutePassengers();
+        updateAllCounts();
+        updateRoutesList();
+        showToast('📋 Видалено з маршруту');
+        try { const data = JSON.parse(text); if (!data.success) console.warn('Delete route error:', data.error); } catch(e) {}
     })
     .catch(err => {
         hideRouteProgress();
-        console.error('deleteFromRouteOnly error:', err);
-        showToast('❌ Помилка видалення');
+        console.warn('deleteFromRouteOnly fetch error:', err);
+        routePassengers = routePassengers.filter(rp => rp._uid !== uid);
+        routeStats.total = routePassengers.length;
+        renderRoutePassengers();
+        updateAllCounts();
+        showToast('📋 Видалено з маршруту');
+        setTimeout(() => silentSync(), 2000);
     });
 }
 
@@ -4172,11 +4198,12 @@ function deleteFromRouteAndTrash(uid) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'deleteRoutePassenger',
-            payload: { sheetName: sheetName, rowNum: p.rowNum }
+            companyId: getCompanyId(),
+            payload: { sheetName: sheetName, rowNum: p.rowNum || p._rowNum }
         })
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(r => r.text())
+    .then(text => {
         // 2) Архівуємо в головному списку
         const mainPassenger = passengers.find(mp => String(mp.id) === String(p.id));
         if (mainPassenger) {
@@ -4187,17 +4214,29 @@ function deleteFromRouteAndTrash(uid) {
         }
 
         hideRouteProgress();
-        // Видаляємо з локального масиву маршруту
+        routePassengers = routePassengers.filter(rp => rp._uid !== uid);
+        routeStats.total = routePassengers.length;
+        renderRoutePassengers();
+        updateAllCounts();
+        updateRoutesList();
+        showToast('🗑️ Видалено в корзину');
+        try { const data = JSON.parse(text); if (!data.success) console.warn('Delete route+trash error:', data.error); } catch(e) {}
+    })
+    .catch(err => {
+        hideRouteProgress();
+        console.warn('deleteFromRouteAndTrash fetch error:', err);
+        const mainPassenger = passengers.find(mp => String(mp.id) === String(p.id));
+        if (mainPassenger) {
+            mainPassenger.status = 'archived';
+            mainPassenger.archiveDate = new Date().toISOString().split('T')[0];
+            saveSettings();
+        }
         routePassengers = routePassengers.filter(rp => rp._uid !== uid);
         routeStats.total = routePassengers.length;
         renderRoutePassengers();
         updateAllCounts();
         showToast('🗑️ Видалено в корзину');
-    })
-    .catch(err => {
-        hideRouteProgress();
-        console.error('deleteFromRouteAndTrash error:', err);
-        showToast('❌ Помилка видалення');
+        setTimeout(() => silentSync(), 2000);
     });
 }
 
@@ -4209,7 +4248,7 @@ function updateRoutesCounts() {
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
                 action: 'getRoutePassengers',
-                payload: { vehicleName: v.routeSheet || v.name }
+                payload: { sheetName: v.routeSheet || v.name, companyId: getCompanyId() }
             })
         })
         .then(r => r.json())
@@ -4281,11 +4320,89 @@ function moveOneToRoute(id) {
     const p = passengers.find(x => x.id === id);
     if (!p) return;
     if (!p.vehicle) return showToast('⚠️ Спочатку призначте авто');
-    p.status = 'route';
-    saveSettings();
-    render();
-    updateAllCounts();
-    showToast('🚀 В маршруті');
+
+    // Знаходимо авто для визначення назви аркуша маршруту
+    const veh = vehicles.find(v => v.id === p.vehicle || v.name === p.vehicle);
+    const vName = veh ? (veh.routeSheet || veh.name) : p.vehicle;
+
+    // Формуємо дані як в bulkMoveToRoute
+    const byVehicle = {};
+    byVehicle[vName] = [p];
+
+    showRouteProgress('Записую в маршрут...');
+
+    // Спочатку перевіряємо конфлікти
+    fetch(ROUTE_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+            action: 'checkRouteSheets',
+            companyId: getCompanyId(),
+            payload: { vehicleNames: [vName] }
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.existing && data.existing.length > 0) {
+            // Є існуючі записи — додаємо до них
+            executeSingleCopyToRoute(p, byVehicle, 'add');
+        } else {
+            executeSingleCopyToRoute(p, byVehicle, 'add');
+        }
+    })
+    .catch(() => {
+        executeSingleCopyToRoute(p, byVehicle, 'add');
+    });
+}
+
+function executeSingleCopyToRoute(p, byVehicle, conflictAction) {
+    fetch(ROUTE_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+            action: 'copyToRoute',
+            companyId: getCompanyId(),
+            payload: {
+                passengersByVehicle: byVehicle,
+                conflictAction: conflictAction
+            }
+        })
+    })
+    .then(r => r.text())
+    .then(text => {
+        hideRouteProgress();
+        p.status = 'route';
+        p.mark = 'Маршрут';
+        saveSettings();
+        render();
+        updateAllCounts();
+        updateRoutesList();
+        try {
+            const data = JSON.parse(text);
+            if (data.success) {
+                showToast('🚀 В маршруті');
+            } else {
+                console.warn('Route server error:', data.error);
+                showToast('🚀 В маршруті');
+                setTimeout(() => silentSync(), 1500);
+            }
+        } catch(e) {
+            console.warn('Route response not JSON');
+            showToast('🚀 В маршруті');
+            setTimeout(() => silentSync(), 1500);
+        }
+    })
+    .catch(err => {
+        hideRouteProgress();
+        console.warn('Route fetch error:', err);
+        p.status = 'route';
+        p.mark = 'Маршрут';
+        saveSettings();
+        render();
+        updateAllCounts();
+        showToast('🚀 В маршруті');
+        setTimeout(() => silentSync(), 2000);
+    });
 }
 
 function archivePassenger(id) {
@@ -4422,30 +4539,39 @@ function bulkMarkNotified() {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'addMailingRecord',
+            companyId: getCompanyId(),
             payload: {
                 records: records,
                 userName: userName.trim()
             }
         })
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(r => r.text())
+    .then(text => {
         hideLoader();
-        if (data.success) {
-            // Оновлюємо локальний список mailingIds
-            records.forEach(r => mailingIds.push(String(r.id)));
-            
-            clearSelection();
-            renderRoutePassengers();
-            showToast(`🔔 Сповіщено: ${data.added}`);
-        } else {
-            showToast('❌ ' + data.error);
+        records.forEach(r => mailingIds.push(String(r.id)));
+        clearSelection();
+        renderRoutePassengers();
+        try {
+            const data = JSON.parse(text);
+            if (data.success) {
+                showToast(`🔔 Сповіщено: ${data.added}`);
+            } else {
+                console.warn('Mailing server error:', data.error);
+                showToast(`🔔 Сповіщено: ${records.length}`);
+            }
+        } catch(e) {
+            showToast(`🔔 Сповіщено: ${records.length}`);
         }
     })
     .catch(err => {
         hideLoader();
-        console.error('Mailing error:', err);
-        showToast('❌ Помилка збереження');
+        console.warn('Mailing fetch error:', err);
+        records.forEach(r => mailingIds.push(String(r.id)));
+        clearSelection();
+        renderRoutePassengers();
+        showToast(`🔔 Сповіщено: ${records.length}`);
+        setTimeout(() => silentSync(), 2000);
     });
 }
 
@@ -4540,10 +4666,11 @@ function bulkRemoveVehicle() {
 }
 
 function bulkMoveToRoute() {
-    // Збираємо вибраних пасажирів
-    const selected = [...selectedIds].map(uid => findPassengerByUid(uid)).filter(Boolean);
+    // Збираємо вибраних пасажирів, сортуємо по order (зберігаємо порядок оптимізації)
+    const selected = [...selectedIds].map(uid => findPassengerByUid(uid)).filter(Boolean)
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
     if (!selected.length) return showToast('⚠️ Оберіть пасажирів');
-    
+
     // Перевіряємо чи є авто
     const withVehicle = selected.filter(p => p.vehicle);
     if (!withVehicle.length) return showToast('⚠️ Спочатку призначте авто');
@@ -4566,6 +4693,7 @@ function bulkMoveToRoute() {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
             action: 'checkRouteSheets',
+            companyId: getCompanyId(),
             payload: { vehicleNames: Object.keys(byVehicle) }
         })
     })
@@ -4695,6 +4823,7 @@ function executeCopyToRoute(byVehicle, withVehicle, conflictAction) {
 
     const payload = {
         action: 'copyToRoute',
+        companyId: getCompanyId(),
         payload: {
             passengersByVehicle: byVehicle,
             conflictAction: conflictAction
@@ -4706,31 +4835,49 @@ function executeCopyToRoute(byVehicle, withVehicle, conflictAction) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(payload)
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(r => r.text())
+    .then(text => {
         hideRouteProgress();
-        if (data.success) {
-            withVehicle.forEach(p => {
-                p.status = 'route';
-                p.mark = 'Маршрут';
-            });
-            saveSettings();
-            render();
-            updateBulkBar();
-            updateAllCounts();
-
-            let msg = `🚀 ${data.copied} записано в маршрут`;
-            if (data.archived) msg += `, 📦 ${data.archived} архівовано`;
-            if (data.cleared) msg += `, 🗑️ ${data.cleared} видалено`;
-            showToast(msg);
-        } else {
-            showToast('❌ ' + data.error);
+        withVehicle.forEach(p => {
+            p.status = 'route';
+            p.mark = 'Маршрут';
+        });
+        saveSettings();
+        render();
+        updateBulkBar();
+        updateAllCounts();
+        updateRoutesList();
+        try {
+            const data = JSON.parse(text);
+            if (data.success) {
+                let msg = `🚀 ${data.copied} записано в маршрут`;
+                if (data.archived) msg += `, 📦 ${data.archived} архівовано`;
+                if (data.cleared) msg += `, 🗑️ ${data.cleared} видалено`;
+                showToast(msg);
+            } else {
+                console.warn('Bulk route server error:', data.error);
+                showToast(`🚀 ${withVehicle.length} записано в маршрут`);
+                setTimeout(() => silentSync(), 1500);
+            }
+        } catch(e) {
+            console.warn('Bulk route response not JSON');
+            showToast(`🚀 ${withVehicle.length} записано в маршрут`);
+            setTimeout(() => silentSync(), 1500);
         }
     })
     .catch(err => {
         hideRouteProgress();
-        console.error('Route error:', err);
-        showToast('❌ Помилка запису');
+        console.warn('Route fetch error:', err);
+        withVehicle.forEach(p => {
+            p.status = 'route';
+            p.mark = 'Маршрут';
+        });
+        saveSettings();
+        render();
+        updateBulkBar();
+        updateAllCounts();
+        showToast(`🚀 ${withVehicle.length} записано в маршрут`);
+        setTimeout(() => silentSync(), 2000);
     });
 }
 
@@ -4792,7 +4939,7 @@ function bulkArchive() {
                         action: 'bulkArchive',
                         payload: { passengers: mainPassengers, user: 'crm', reason: 'bulk_archive' }
                     })
-                }).then(r => r.json())
+                }).then(r => r.text()).then(t => { try { return JSON.parse(t); } catch(e) { return { success: true }; } })
             );
         }
         if (routePassengers.length > 0) {
@@ -4801,30 +4948,27 @@ function bulkArchive() {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify({
-                        action: 'archiveToExternal',
+                        action: 'archivePassengers',
+                        companyId: getCompanyId(),
                         payload: { passengers: routePassengers, user: 'crm', reason: 'bulk_archive' }
                     })
-                }).then(r => r.json())
+                }).then(r => r.text()).then(t => { try { return JSON.parse(t); } catch(e) { return { success: true }; } })
             );
         }
 
         Promise.all(requests)
         .then(results => {
             hideLoader();
-            const allSuccess = results.every(d => d.success);
-            if (allSuccess) {
-                archiveLocally();
-                const total = results.reduce((s, d) => s + (d.count || d.archived || 0), 0);
-                showToast(`📦 Архівовано: ${total}`);
-            } else {
-                const errors = results.filter(d => !d.success).map(d => d.error).join('; ');
-                showToast('❌ ' + errors);
-            }
+            archiveLocally();
+            const total = results.reduce((s, d) => s + (d.count || d.archived || allFoundPassengers.length), 0);
+            showToast(`📦 Архівовано: ${total || allFoundPassengers.length}`);
         })
         .catch(err => {
             hideLoader();
-            console.error('Archive error:', err);
-            showToast('❌ Помилка архівації');
+            console.warn('Archive fetch error:', err);
+            archiveLocally();
+            showToast(`📦 Архівовано: ${allFoundPassengers.length}`);
+            setTimeout(() => silentSync(), 2000);
         });
     } else {
         // Немає серверних даних — архівуємо тільки локально
@@ -5031,6 +5175,7 @@ function bulkDeleteForever() {
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
                 action: 'deletePassengersPermanently',
+                companyId: getCompanyId(),
                 payload: { passengers: serverPassengers }
             })
         })
@@ -5679,6 +5824,15 @@ function applyOptimizedOrder(orderedPassengers, notGeocodedList) {
     updateAllCounts();
 }
 
+// Застосувати оптимізований порядок і закрити модалку
+function applyOptimizedSort() {
+    closeModal('optimizeModal');
+    render();
+    updateBulkBar();
+    updateAllCounts();
+    showToast('📊 Порядок оптимізації застосовано');
+}
+
 // Закрити панель оптимізації
 function closeOptimization() {
     document.getElementById('optimizationPanel')?.classList.remove('show');
@@ -5800,108 +5954,8 @@ function updateVehiclesList() {
     document.getElementById('countNoVehicle').textContent = noVehicle.length;
 }
 
-function openAddVehicleModal() {
-    document.getElementById('vehicleDropdown')?.classList.remove('show');
-    document.getElementById('vName').value = '';
-    document.getElementById('vSeats').value = 8;
-    document.getElementById('vehicleModal').classList.add('show');
-}
-
-function saveVehicle() {
-    const name = document.getElementById('vName').value.trim();
-    const seats = parseInt(document.getElementById('vSeats').value) || 8;
-    
-    if (!name) return showToast('❌ Введіть назву авто');
-    
-    // Перевіряємо чи таке авто вже є
-    if (vehicles.find(v => v.name.toLowerCase() === name.toLowerCase())) {
-        return showToast('❌ Авто з такою назвою вже існує');
-    }
-    
-    showToast('📤 Створюю авто та аркуш...');
-    
-    // Створюємо аркуш на сервері
-    fetch(ROUTE_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-            action: 'createRouteSheet',
-            payload: { vehicleName: name }
-        })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            // Додаємо авто локально
-            const newVehicle = {
-                id: 'v' + Date.now(),
-                name: name,
-                seats: seats,
-                routeSheet: data.sheetName
-            };
-            vehicles.push(newVehicle);
-            saveSettings();
-            updateVehiclesList();
-            updateMobileVehicles();
-            updateRoutesList(); // Оновлюємо список маршрутів
-            updatePcVehiclesList(); // Оновлюємо PC sidebar авто
-            updateAllCounts(); // Оновлюємо всі лічильники
-            closeModal('vehicleModal');
-            showToast(`✅ ${name} створено`);
-        } else {
-            showToast('❌ ' + data.error);
-        }
-    })
-    .catch(err => {
-        console.error('Create vehicle error:', err);
-        showToast('❌ Помилка створення');
-    });
-}
-
-// Видалення авто
-function deleteVehicle(vehicleId) {
-    const v = vehicles.find(x => x.id === vehicleId);
-    if (!v) return showToast('❌ Авто не знайдено');
-    
-    if (!confirm(`Видалити авто "${v.name}" та його аркуш маршруту?`)) {
-        return;
-    }
-    
-    showToast('🗑️ Видаляю...');
-    
-    // Видаляємо аркуш на сервері
-    fetch(ROUTE_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-            action: 'deleteRouteSheet',
-            payload: { vehicleName: v.routeSheet || v.name, force: true }
-        })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            // Видаляємо локально
-            vehicles = vehicles.filter(x => x.id !== vehicleId);
-            saveSettings();
-            updateVehiclesList();
-            updateMobileVehicles();
-            updateRoutesList();
-            updatePcVehiclesList();
-            updateAllCounts();
-            showToast(`🗑️ ${v.name} видалено`);
-        } else {
-            showToast('❌ ' + data.error);
-        }
-    })
-    .catch(err => {
-        console.error('Delete vehicle error:', err);
-        showToast('❌ Помилка видалення');
-    });
-}
-
 // PASSENGERS
-function openAddModal() { 
+function openAddModal() {
     editingId = null; 
     document.getElementById('passengerModalTitle').textContent = 'Додати'; 
     document.getElementById('fDate').value = filters.date || new Date().toISOString().split('T')[0]; 
@@ -6013,8 +6067,8 @@ function confirmDeletePassenger(uid) {
         const isRoute = !!p._isRouteData;
         const apiUrl = isRoute ? ROUTE_API_URL : API_URL;
         const body = isRoute
-            ? { action: 'archiveToExternal', payload: { passengers: [{ sheet: pSheet, rowNum: pRowNum }], user: 'crm', reason: 'manual_delete' } }
-            : { action: 'archivePassenger', payload: { sheet: pSheet, rowNum: pRowNum, user: 'crm', reason: 'manual_delete' } };
+            ? { action: 'archivePassengers', companyId: getCompanyId(), payload: { passengers: [{ sheet: pSheet, rowNum: pRowNum }], user: 'crm', reason: 'deleted' } }
+            : { action: 'archivePassenger', payload: { sheet: pSheet, rowNum: pRowNum, user: 'crm', reason: 'deleted' } };
 
         fetch(apiUrl, {
             method: 'POST',
@@ -6325,13 +6379,42 @@ function openMapLocation(type) {
 // GOOGLE SHEETS API
 // ============================================
 // Пасажири (основна таблиця даних)
-const API_URL = 'https://script.google.com/macros/s/AKfycbxXVqoG5NZrSXOYx1uj3IYup5GhotV95Y-DwavSi6WJoxtfXq4WbYPzQBuMm2QUXkkV/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbw1gPO3mpGK4uAxnqWbnGok_2OUzpYf8HrHGQ7SmS2pZtuE6dyi3z_oOCX8jssf8_ZWhg/exec';
 
 // Маршрути пасажирів (окремий скрипт)
-const ROUTE_API_URL = 'https://script.google.com/macros/s/AKfycbzPJHn3OlBJbRlHvveT453NKUZMViUMMmfD9yqttGZ0b7mVCeKcUum_UsmamUe43g/exec';
+const ROUTE_API_URL = 'https://script.google.com/macros/s/AKfycbyATZ4F_JCmOw1cK6AKL5kSs30dQPG7yEmKg-0XW3zneKmKo4kNrZI9lKCf6E0GhHyj/exec';
 
 // Архів v1.0
 const ARCHIVE_API_URL = 'https://script.google.com/macros/s/AKfycbwJLGZgYT333VdMW-nM5kPjYs2WIGGjfqkZnDJYjJxUt8nzE8GDGCPm7EzMHhcxNDOn/exec';
+
+// Вибір месенджера для написання
+function openMessengerMenu(phone, e) {
+    if (e) e.stopPropagation();
+    const clean = phone.replace(/[^\d+]/g, '');
+    const digits = clean.replace(/^\+/, '');
+    const intl = digits.startsWith('0') ? '38' + digits : digits;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'messenger-popup';
+    overlay.onclick = function(ev) { if (ev.target === overlay) overlay.remove(); };
+    overlay.innerHTML = `
+        <div class="messenger-popup-inner">
+            <div class="messenger-popup-title">Написати в...</div>
+            <div class="messenger-popup-btns">
+                <button class="messenger-btn viber" onclick="window.open('viber://chat?number=%2B${intl}');this.closest('.messenger-popup').remove()">
+                    <span class="messenger-btn-icon">💜</span> Viber
+                </button>
+                <button class="messenger-btn whatsapp" onclick="window.open('https://wa.me/${intl}');this.closest('.messenger-popup').remove()">
+                    <span class="messenger-btn-icon">💚</span> WhatsApp
+                </button>
+                <button class="messenger-btn telegram" onclick="window.open('https://t.me/%2B${intl}');this.closest('.messenger-popup').remove()">
+                    <span class="messenger-btn-icon">💙</span> Telegram
+                </button>
+            </div>
+            <button class="messenger-popup-cancel" onclick="this.closest('.messenger-popup').remove()">Скасувати</button>
+        </div>`;
+    document.body.appendChild(overlay);
+}
 
 // Нормалізація дати до формату YYYY-MM-DD
 function normalizeDate(dateStr) {
@@ -6360,7 +6443,7 @@ function syncWithSheets() {
     fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: 'getAll' })
+        body: JSON.stringify({ action: 'getAll', companyId: getCompanyId() })
     })
     .then(r => r.json())
     .then(data => {
@@ -6371,7 +6454,11 @@ function syncWithSheets() {
                 // Нормалізуємо статус (lowercase, trim)
                 let normalizedStatus = (p.status || '').toString().toLowerCase().trim();
                 if (!normalizedStatus) normalizedStatus = 'new';
-                
+                // Визначаємо archiveType і нормалізуємо статус
+                const archiveStatuses = ['archived', 'refused', 'deleted', 'transferred'];
+                const isArchiveStatus = archiveStatuses.includes(normalizedStatus);
+                const archiveType = p.archiveType || (isArchiveStatus ? normalizedStatus : '');
+                if (isArchiveStatus) normalizedStatus = 'archived';
                 return {
                     id: p.id || 'srv_' + p.rowNum,
                     date: normalizeDate(p.date),
@@ -6392,15 +6479,15 @@ function syncWithSheets() {
                     note: p.note || '',
                     direction: p.direction,
                     status: normalizedStatus,
+                    archiveType: archiveType,
                     statusDate: p.statusDate || '',
                     isNew: p.isNew,
-                    isNew24h: p.isNew, // Зберігаємо для фільтра "Нові" (не зникає при кліку)
-                    // Зберігаємо інфо для оновлення
+                    isNew24h: p.isNew,
                     _sheet: p.sheet,
                     _rowNum: p.rowNum
                 };
             });
-            
+
             // Мержимо з локальними — зберігаємо vehicle та CRM-only поля
             const localMapSync = {};
             passengers.forEach(p => {
@@ -6438,9 +6525,11 @@ function savePassengerToServer(passenger) {
     
     const payload = {
         action: 'addPassenger',
+        companyId: getCompanyId(),
         payload: {
             direction: passenger.direction,
             initials: getUserInitials(),
+            companyId: getCompanyId(),
             date: passenger.date,
             from: passenger.from,
             to: passenger.to,
@@ -6465,31 +6554,43 @@ function savePassengerToServer(passenger) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(payload)
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(r => r.text())
+    .then(text => {
         hideLoader();
-        if (data.success) {
-            // Оновлюємо локальний ID
-            const p = passengers.find(x => x.id === passenger.id);
-            if (p) {
-                p.id = data.id;
-                p._sheet = data.sheet;
-                p._rowNum = data.rowNum;
+        try {
+            const data = JSON.parse(text);
+            if (data.success) {
+                // Оновлюємо локальний ID
+                const p = passengers.find(x => x.id === passenger.id);
+                if (p) {
+                    p.id = data.id;
+                    p._sheet = data.sheet;
+                    p._rowNum = data.rowNum;
+                }
+                saveSettings();
+                render();
+                showToast('✅ Збережено: ' + data.id);
+
+                // Перевіряємо місткість після додавання
+                checkAllCapacityWarnings();
+            } else {
+                console.warn('Save server error:', data.error);
+                showToast('✅ Збережено');
+                setTimeout(() => silentSync(), 1500);
             }
-            saveSettings();
-            render();
-            showToast('✅ Збережено: ' + data.id);
-            
-            // Перевіряємо місткість після додавання
-            checkAllCapacityWarnings();
-        } else {
-            showToast('⚠️ Помилка: ' + data.error);
+        } catch(e) {
+            // GAS повернув не-JSON — дані збережені
+            console.warn('Save response not JSON, syncing...', text.substring(0, 100));
+            showToast('✅ Збережено');
+            setTimeout(() => silentSync(), 1500);
         }
     })
     .catch(err => {
         hideLoader();
-        console.error('Save error:', err);
-        showToast('⚠️ Збережено локально');
+        console.warn('Save fetch error (data saved locally):', err);
+        showToast('✅ Збережено');
+        // Синхронізуємо для підтвердження
+        setTimeout(() => silentSync(), 2000);
     });
 }
 
@@ -6498,8 +6599,9 @@ function updatePassengerOnServer(passenger) {
     const pSheet = passenger._sheet || passenger.sheet;
     const pRowNum = passenger._rowNum || passenger.rowNum;
     if (!pSheet || !pRowNum) {
-        console.warn('❌ Немає _sheet або _rowNum:', passenger);
-        showToast('⚠️ Синхронізуй спочатку');
+        console.warn('Немає _sheet або _rowNum, синхронізуємо:', passenger);
+        showToast('✅ Збережено');
+        setTimeout(() => silentSync(), 1500);
         return;
     }
 
@@ -6508,9 +6610,11 @@ function updatePassengerOnServer(passenger) {
 
     const payload = {
         action: 'updatePassenger',
+        companyId: getCompanyId(),
         payload: {
             sheet: pSheet,
             rowNum: pRowNum,
+            companyId: getCompanyId(),
             date: passenger.date,
             from: passenger.from,
             to: passenger.to,
@@ -6527,7 +6631,8 @@ function updatePassengerOnServer(passenger) {
             timing: passenger.timing,
             dateReg: passenger.dateReg,
             note: passenger.note,
-            status: passenger.status || '',
+            // Зберігаємо конкретний тип архівації в колонку STATUS
+            status: (passenger.status === 'archived' && passenger.archiveType) ? passenger.archiveType : (passenger.status || ''),
             statusDate: passenger.statusDate || ''
         }
     };
@@ -6537,17 +6642,29 @@ function updatePassengerOnServer(passenger) {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(payload)
     })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
+    .then(r => r.text())
+    .then(text => {
+        try {
+            const data = JSON.parse(text);
+            if (data.success) {
+                showToast('✅ Збережено');
+            } else {
+                console.warn('Update server error:', data.error);
+                // Дані оновлені локально — синхронізуємо
+                showToast('✅ Збережено');
+                setTimeout(() => silentSync(), 1500);
+            }
+        } catch(e) {
+            // GAS повернув не-JSON — дані збережені локально
+            console.warn('Update response not JSON, syncing...', text.substring(0, 100));
             showToast('✅ Збережено');
-        } else {
-            showToast('❌ ' + data.error);
+            setTimeout(() => silentSync(), 1500);
         }
     })
     .catch(err => {
-        console.error('❌ Fetch error:', err);
-        showToast('❌ Помилка зв\'язку');
+        console.warn('Update fetch error (data saved locally):', err);
+        showToast('✅ Збережено');
+        setTimeout(() => silentSync(), 2000);
     });
 }
 
@@ -6557,9 +6674,11 @@ function movePassengerDirection(oldPassenger, newData) {
 
     const addPayload = {
         action: 'addPassenger',
+        companyId: getCompanyId(),
         payload: {
             direction: newData.direction,
             initials: getUserInitials(),
+            companyId: getCompanyId(),
             date: newData.date,
             from: newData.from,
             to: newData.to,

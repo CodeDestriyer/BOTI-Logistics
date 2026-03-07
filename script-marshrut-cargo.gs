@@ -1,7 +1,7 @@
 // ============================================
-// ЮРА ТРАНСПОРТЕЙШН — МАРШРУТИ ПОСИЛКИ v1.0
+// BOTI LOGISTICS — МАРШРУТИ ПОСИЛКИ v2.0
 // Apps Script API для таблиці "Маршрути посилки"
-// ID: 1Pd3nv3fbwZ_0YSzdG4cda-q52BQT57E0hDe7eQej6z8
+// ID: 17g3TFYg11EqdQ9eGrOKQV3n_nqPDFx7dqsJVaGWeDOo
 // ============================================
 //
 // ІНСТРУКЦІЯ:
@@ -18,7 +18,7 @@
 // КОНФІГУРАЦІЯ
 // ============================================
 
-var SPREADSHEET_ID = '1Pd3nv3fbwZ_0YSzdG4cda-q52BQT57E0hDe7eQej6z8';
+var SPREADSHEET_ID = '17g3TFYg11EqdQ9eGrOKQV3n_nqPDFx7dqsJVaGWeDOo';
 
 // URL архівного скрипта (Crm_Arhiv_1.0)
 var ARCHIVE_API_URL = 'https://script.google.com/macros/s/AKfycbwJLGZgYT333VdMW-nM5kPjYs2WIGGjfqkZnDJYjJxUt8nzE8GDGCPm7EzMHhcxNDOn/exec';
@@ -35,65 +35,74 @@ var STATUS_COLORS = {
   'cancelled':   { bg: '#ffebee', border: '#dc3545', font: '#dc3545' }
 };
 
-// Колонки (A-Z = 26, індекс 0-25)
-// A:ВО  B:Номер№  C:Номер ТТН  D:Вага  E:Адреса Отримувача
-// F:Напрямок  G:Телефон Отримувача  H:Сума Є  I:Статус оплати
-// J:Оплата  K:Телефон Реєстратора  L:Примітка  M:Статус посилки
-// N:ІД  O:ПіБ  P:дата оформлення  Q:Таймінг  R:Примітка смс
-// S:Дата отримання  T:фото  U:Статус
-// V:DATE_ARCHIVE  W:ARCHIVED_BY  X:ARCHIVE_REASON
-// Y:SOURCE_SHEET  Z:ARCHIVE_ID
+// Порядок колонок (A-W = 23 колонки, індекс 0-22)
+// Ідентичний до Logistics-Cargo таблиці
+// A:Напрямок  B:Номер ТТН  C:Вага  D:Адреса Отримувача
+// E:Телефон Отримувача  F:Сума €  G:Статус оплати  H:Оплата
+// I:Телефон Реєстратора  J:Примітка  K:Статус посилки  L:ІД
+// M:ПІБ  N:дата оформлення  O:Таймінг  P:Примітка смс
+// Q:Дата отримання  R:фото  S:Статус  T:Автомобіль
+// U:company_id  V:Дата архів  W:ARCHIVE_ID
 var COL = {
-  VO: 0,              // A — ВО (відправник-отримувач)
-  NUMBER: 1,          // B — Номер№
-  TTN: 2,             // C — Номер ТТН
-  WEIGHT: 3,          // D — Вага
-  ADDRESS: 4,         // E — Адреса Отримувача
-  DIRECTION: 5,       // F — Напрямок
-  PHONE: 6,           // G — Телефон Отримувача
-  AMOUNT: 7,          // H — Сума Є
-  PAY_STATUS: 8,      // I — Статус оплати
-  PAYMENT: 9,         // J — Оплата
-  PHONE_REG: 10,      // K — Телефон Реєстратора
-  NOTE: 11,           // L — Примітка
-  PARCEL_STATUS: 12,  // M — Статус посилки (pending/in-progress/completed/cancelled)
-  ID: 13,             // N — ІД
-  NAME: 14,           // O — ПіБ
-  DATE_REG: 15,       // P — дата оформлення
-  TIMING: 16,         // Q — Таймінг
-  SMS_NOTE: 17,       // R — Примітка смс
-  DATE_RECEIVE: 18,   // S — Дата отримання
-  PHOTO: 19,          // T — фото
-  STATUS: 20,         // U — Статус (CRM: new/work/archived/refused/deleted)
-  DATE_ARCHIVE: 21,   // V — DATE_ARCHIVE
-  ARCHIVED_BY: 22,    // W — ARCHIVED_BY
-  ARCHIVE_REASON: 23, // X — ARCHIVE_REASON
-  SOURCE_SHEET: 24,   // Y — SOURCE_SHEET
-  ARCHIVE_ID: 25      // Z — ARCHIVE_ID
+  DIRECTION: 0,      // A — Напрямок (ua-eu / eu-ua)
+  TTN: 1,            // B — Номер ТТН
+  WEIGHT: 2,         // C — Вага
+  ADDRESS: 3,        // D — Адреса Отримувача
+  PHONE: 4,          // E — Телефон Отримувача
+  AMOUNT: 5,         // F — Сума €
+  PAY_STATUS: 6,     // G — Статус оплати
+  PAYMENT: 7,        // H — Оплата
+  PHONE_REG: 8,      // I — Телефон Реєстратора
+  NOTE: 9,           // J — Примітка
+  PARCEL_STATUS: 10, // K — Статус посилки (pending/in-progress/completed/cancelled)
+  ID: 11,            // L — ІД
+  NAME: 12,          // M — ПІБ
+  DATE_REG: 13,      // N — дата оформлення
+  TIMING: 14,        // O — Таймінг
+  SMS_NOTE: 15,      // P — Примітка смс
+  DATE_RECEIVE: 16,  // Q — Дата отримання
+  PHOTO: 17,         // R — фото
+  STATUS: 18,        // S — Статус (CRM: new/work/archived/refused/deleted)
+  VEHICLE: 19,       // T — Автомобіль
+  COMPANY_ID: 20,    // U — company_id
+  DATE_ARCHIVE: 21,  // V — Дата архів
+  ARCHIVE_ID: 22     // W — ARCHIVE_ID
 };
-var TOTAL_COLS = 26;
+var TOTAL_COLS = 23;
 
-// Заголовки для нового аркуша
+// Заголовки для нового аркуша (ідентичні до Logistics-Cargo)
 var HEADERS = [
-  'ВО', 'Номер№', 'Номер ТТН', 'Вага', 'Адреса Отримувача',
-  'Напрямок', 'Телефон Отримувача', 'Сума Є', 'Статус оплати', 'Оплата',
-  'Телефон Реєстратора', 'Примітка', 'Статус посилки', 'ІД', 'ПіБ',
-  'дата оформлення', 'Таймінг', 'Примітка смс', 'Дата отримання', 'фото',
-  'Статус', 'DATE_ARCHIVE', 'ARCHIVED_BY', 'ARCHIVE_REASON',
-  'SOURCE_SHEET', 'ARCHIVE_ID'
+  'Напрямок', 'Номер ТТН', 'Вага', 'Адреса Отримувача',
+  'Телефон Отримувача', 'Сума €', 'Статус оплати', 'Оплата',
+  'Телефон Реєстратора', 'Примітка', 'Статус посилки', 'ІД',
+  'ПІБ', 'дата оформлення', 'Таймінг', 'Примітка смс',
+  'Дата отримання', 'фото', 'Статус', 'Автомобіль',
+  'company_id', 'Дата архів', 'ARCHIVE_ID'
 ];
 
 // Статуси для архівації
 var ARCHIVE_STATUSES = ['archived', 'refused', 'deleted', 'transferred'];
 
-// Маппінг полів API → індексів колонок
+// ============================================
+// Пошук колонки company_id по заголовку (1-й рядок)
+// Повертає індекс колонки або -1 якщо не знайдено
+// ============================================
+function findCompanyIdCol(sheet) {
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return -1;
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (var i = 0; i < headers.length; i++) {
+    if (String(headers[i]).trim().toLowerCase() === 'company_id') return i;
+  }
+  return -1;
+}
+
+// Маппінг полів API → індексів колонок (ідентичний до Logistics-Cargo)
 var FIELD_MAP = {
-  vo: COL.VO,
-  number: COL.NUMBER,
+  direction: COL.DIRECTION,
   ttn: COL.TTN,
   weight: COL.WEIGHT,
   address: COL.ADDRESS,
-  direction: COL.DIRECTION,
   phone: COL.PHONE,
   amount: COL.AMOUNT,
   payStatus: COL.PAY_STATUS,
@@ -109,11 +118,10 @@ var FIELD_MAP = {
   dateReceive: COL.DATE_RECEIVE,
   photo: COL.PHOTO,
   status: COL.STATUS,
+  vehicle: COL.VEHICLE,
   dateArchive: COL.DATE_ARCHIVE,
-  archivedBy: COL.ARCHIVED_BY,
-  archiveReason: COL.ARCHIVE_REASON,
-  sourceSheet: COL.SOURCE_SHEET,
-  archiveId: COL.ARCHIVE_ID
+  archiveId: COL.ARCHIVE_ID,
+  companyId: COL.COMPANY_ID
 };
 
 // ============================================
@@ -123,6 +131,7 @@ function doGet(e) {
   try {
     var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'health';
     var sheetParam = (e && e.parameter) ? (e.parameter.sheet || '') : '';
+    var companyIdParam = (e && e.parameter) ? (e.parameter.companyId || '') : '';
 
     switch (action) {
       case 'health':
@@ -136,10 +145,10 @@ function doGet(e) {
 
       case 'getDeliveries':
         if (!sheetParam) return respond({ success: false, error: 'Не вказано маршрут (sheet)' });
-        return respond(getDeliveries(sheetParam));
+        return respond(getDeliveries(sheetParam, companyIdParam));
 
       case 'getAvailableRoutes':
-        return respond(getAvailableRoutes());
+        return respond(getAvailableRoutes(companyIdParam));
 
       default:
         return respond({ success: false, error: 'Невідома GET дія: ' + action });
@@ -157,6 +166,8 @@ function doPost(e) {
     var data = JSON.parse(e.postData.contents);
     var action = data.action;
     var payload = data.payload || data;
+    // Прокидуємо companyId в payload (фронтенд шле його в data, не в payload)
+    payload.companyId = payload.companyId || data.companyId || '';
 
     switch (action) {
       // --- CRM: МАРШРУТИ ---
@@ -173,7 +184,7 @@ function doPost(e) {
         return respond(getRoutePackages(payload));
 
       case 'getAvailableRoutes':
-        return respond(getAvailableRoutes());
+        return respond(getAvailableRoutes(payload.companyId));
 
       case 'deleteRouteSheet':
         return respond(deleteRouteSheet(payload));
@@ -225,6 +236,22 @@ function doPost(e) {
       case 'clearOldMailing':
         return respond(clearOldMailing(payload));
 
+      // --- СТВОРЕННЯ ---
+      case 'addPackage':
+        return respond(addPackageToRoute(data));
+
+      // --- ВІДПРАВКА (DISPATCH) ---
+      case 'getDispatchItems':
+        return respond(getDispatchItems(payload));
+      case 'addDispatchItem':
+        return respond(addDispatchItem(payload));
+      case 'updateDispatchStatus':
+        return respond(updateDispatchStatus(data));
+      case 'editDispatchItem':
+        return respond(editDispatchItem(payload));
+      case 'editRoutePackage':
+        return respond(editRoutePackage(payload));
+
       // --- ДЕБАГ ---
       case 'getStructure':
         return respond(getStructure());
@@ -240,7 +267,7 @@ function doPost(e) {
 // ============================================
 // getDeliveries — Читання посилок для водіїв
 // ============================================
-function getDeliveries(sheetName) {
+function getDeliveries(sheetName, companyId) {
   try {
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     var sheet = ss.getSheetByName(sheetName);
@@ -254,14 +281,24 @@ function getDeliveries(sheetName) {
       return { success: true, deliveries: [], count: 0, sheetName: sheetName };
     }
 
-    var readCols = Math.min(sheet.getLastColumn(), TOTAL_COLS);
+    // Шукаємо колонку company_id по заголовку
+    var compIdCol = findCompanyIdCol(sheet);
+
+    var lastCol = sheet.getLastColumn();
+    var readCols = Math.max(lastCol, TOTAL_COLS);
     var data = sheet.getRange(2, 1, lastRow - 1, readCols).getValues();
     var deliveries = [];
 
     for (var i = 0; i < data.length; i++) {
       var row = data[i];
-      var internalNumber = str(row[COL.NUMBER]);
-      if (!internalNumber && !str(row[COL.VO])) continue;
+      // Пропускаємо порожні рядки — потрібен хоча б ІД, ТТН або Телефон
+      if (!str(row[COL.ID]) && !str(row[COL.TTN]) && !str(row[COL.PHONE]) && !str(row[COL.NAME])) continue;
+
+      // Фільтр по company_id
+      if (companyId && compIdCol !== -1) {
+        var rowCompanyId = str(row[compIdCol]).toLowerCase();
+        if (rowCompanyId !== companyId.toLowerCase()) continue;
+      }
 
       // Пропускаємо архівовані
       var crmStatus = str(row[COL.STATUS]).toLowerCase();
@@ -269,8 +306,6 @@ function getDeliveries(sheetName) {
 
       deliveries.push({
         rowNum: i + 2,
-        internalNumber: internalNumber,
-        vo: str(row[COL.VO]),
         ttn: str(row[COL.TTN]),
         weight: str(row[COL.WEIGHT]),
         address: str(row[COL.ADDRESS]),
@@ -290,6 +325,7 @@ function getDeliveries(sheetName) {
         receiveDate: str(row[COL.DATE_RECEIVE]),
         photo: str(row[COL.PHOTO]),
         status: crmStatus || 'new',
+        vehicle: str(row[COL.VEHICLE]),
         archiveId: str(row[COL.ARCHIVE_ID]),
         sheet: sheetName
       });
@@ -344,7 +380,12 @@ function getRoutePackages(payload) {
       return { success: true, packages: [], passengers: [], count: 0, sheetName: sheetName, stats: { total: 0 } };
     }
 
-    var readCols = Math.min(sheet.getLastColumn(), TOTAL_COLS);
+    // Шукаємо колонку company_id по заголовку
+    var compIdCol = findCompanyIdCol(sheet);
+    var companyId = payload.companyId || '';
+
+    var lastCol = sheet.getLastColumn();
+    var readCols = Math.max(lastCol, TOTAL_COLS);
     var dataRange = sheet.getRange(2, 1, lastRow - 1, readCols);
     var data = dataRange.getValues();
     var backgrounds = dataRange.getBackgrounds();
@@ -352,12 +393,17 @@ function getRoutePackages(payload) {
 
     for (var i = 0; i < data.length; i++) {
       var row = data[i];
-      if (!str(row[COL.NUMBER]) && !str(row[COL.VO])) continue;
+      // Пропускаємо порожні рядки — потрібен хоча б ІД, ТТН або Телефон
+      if (!str(row[COL.ID]) && !str(row[COL.TTN]) && !str(row[COL.PHONE]) && !str(row[COL.NAME])) continue;
+
+      // Фільтр по company_id
+      if (companyId && compIdCol !== -1) {
+        var rowCompanyId = str(row[compIdCol]).toLowerCase();
+        if (rowCompanyId !== companyId.toLowerCase()) continue;
+      }
 
       packages.push({
         rowNum: i + 2,
-        vo: str(row[COL.VO]),
-        number: str(row[COL.NUMBER]),
         ttn: str(row[COL.TTN]),
         weight: str(row[COL.WEIGHT]),
         address: str(row[COL.ADDRESS]),
@@ -377,6 +423,7 @@ function getRoutePackages(payload) {
         dateReceive: str(row[COL.DATE_RECEIVE]),
         photo: str(row[COL.PHOTO]),
         status: str(row[COL.STATUS]),
+        vehicle: str(row[COL.VEHICLE]),
         archiveId: str(row[COL.ARCHIVE_ID]),
         rowColor: backgrounds[i][0],
         sheet: sheetName
@@ -410,14 +457,14 @@ function getRoutePackages(payload) {
 // ============================================
 // getAvailableRoutes — Список маршрутних аркушів
 // ============================================
-function getAvailableRoutes() {
+function getAvailableRoutes(companyId) {
   try {
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     var sheets = ss.getSheets();
     var routes = [];
 
     // Службові аркуші які НЕ є маршрутами
-    var excludePatterns = ['логи', 'logs', 'водіїв', 'розсилк', 'провірка', 'перевірка', 'template', 'шаблон', 'тест', 'test', 'архів', 'маршрути'];
+    var excludePatterns = ['логи', 'logs', 'водіїв', 'розсилк', 'провірка', 'перевірка', 'template', 'шаблон', 'тест', 'test', 'архів', 'маршрути водіїв', 'відпр'];
 
     for (var i = 0; i < sheets.length; i++) {
       var name = sheets[i].getName();
@@ -433,7 +480,22 @@ function getAvailableRoutes() {
       }
       if (isExcluded) continue;
 
-      var count = Math.max(0, sheets[i].getLastRow() - 1);
+      var lastRow = sheets[i].getLastRow();
+      if (lastRow < 2) continue;
+
+      // Фільтр по company_id — показуємо тільки маршрути де є рядки з цим company_id
+      var count = lastRow - 1;
+      if (companyId) {
+        var compIdCol = findCompanyIdCol(sheets[i]);
+        if (compIdCol === -1) continue; // Немає колонки company_id — не показуємо
+        var colData = sheets[i].getRange(2, compIdCol + 1, lastRow - 1, 1).getValues();
+        count = 0;
+        for (var r = 0; r < colData.length; r++) {
+          if (String(colData[r][0]).trim().toLowerCase() === companyId.toLowerCase()) count++;
+        }
+        if (count === 0) continue; // Немає рядків для цієї компанії
+      }
+
       routes.push({
         name: name,
         vehicle: name,
@@ -514,12 +576,10 @@ function copyToRoute(payload) {
         var newRow = new Array(TOTAL_COLS);
         for (var c = 0; c < TOTAL_COLS; c++) newRow[c] = '';
 
-        newRow[COL.VO] = pkg.vo || '';
-        newRow[COL.NUMBER] = pkg.number || '';
+        newRow[COL.DIRECTION] = pkg.direction || '';
         newRow[COL.TTN] = pkg.ttn || '';
         newRow[COL.WEIGHT] = pkg.weight || '';
         newRow[COL.ADDRESS] = pkg.address || '';
-        newRow[COL.DIRECTION] = pkg.direction || '';
         newRow[COL.PHONE] = pkg.phone || '';
         newRow[COL.AMOUNT] = pkg.amount || '';
         newRow[COL.PAY_STATUS] = pkg.payStatus || '';
@@ -535,7 +595,8 @@ function copyToRoute(payload) {
         newRow[COL.DATE_RECEIVE] = pkg.dateReceive || '';
         newRow[COL.PHOTO] = pkg.photo || '';
         newRow[COL.STATUS] = 'new';
-        newRow[COL.SOURCE_SHEET] = pkg.sourceSheet || '';
+        newRow[COL.VEHICLE] = vehicleName;
+        newRow[COL.COMPANY_ID] = payload.companyId || '';
 
         rows.push(newRow);
       }
@@ -805,11 +866,18 @@ function changeStatus(payload, newStatus) {
       sheet.getRange(rowNum, COL.STATUS + 1).setValue(newStatus);
 
       if (ARCHIVE_STATUSES.indexOf(newStatus) !== -1) {
+        var companyId = payload.companyId || '';
         sheet.getRange(rowNum, COL.DATE_ARCHIVE + 1).setValue(dateNow);
-        sheet.getRange(rowNum, COL.ARCHIVED_BY + 1).setValue(user);
-        if (note) {
-          sheet.getRange(rowNum, COL.ARCHIVE_REASON + 1).setValue(note);
+        // Записуємо companyId щоб точно був в рядку
+        if (companyId) {
+          sheet.getRange(rowNum, COL.COMPANY_ID + 1).setValue(companyId);
         }
+      }
+
+      if (note) {
+        var currentNote = str(sheet.getRange(rowNum, COL.NOTE + 1).getValue());
+        var updatedNote = note + (currentNote ? ' | ' + currentNote : '');
+        sheet.getRange(rowNum, COL.NOTE + 1).setValue(updatedNote);
       }
 
       changed++;
@@ -835,7 +903,8 @@ function changeStatus(payload, newStatus) {
 function archiveToExternal(payload) {
   try {
     var items = payload.items || payload.packages || [];
-    var user = payload.user || 'crm';
+    var companyId = payload.companyId || '';
+    var user = companyId ? ('archived_' + companyId) : (payload.user || 'crm');
     var reason = payload.reason || 'route_archive';
 
     if (items.length === 0) {
@@ -879,17 +948,19 @@ function archiveToExternal(payload) {
 
       var archiveId = generateArchiveId_();
 
-      // Будуємо рядок архіву: 26 колонок (A-Z)
-      // A-U (0-20): дані | V(21): дата | W(22): хто | X(23): причина | Y(24): аркуш | Z(25): ARCHIVE_ID
+      // Будуємо рядок архіву: 23 колонки (A-W) + 3 мета-колонки (X, Y, Z)
+      // A-W (0-22): дані з маршруту | X: ARCHIVED_BY | Y: ARCHIVE_REASON | Z: SOURCE_SHEET
       var archiveRow = [];
-      for (var j = 0; j < 21; j++) {
+      for (var j = 0; j < TOTAL_COLS; j++) {
         archiveRow.push(rowData[j] !== undefined ? rowData[j] : '');
       }
-      archiveRow.push(dateNow);       // V - DATE_ARCHIVE
-      archiveRow.push(user);          // W - ARCHIVED_BY
-      archiveRow.push(reason);        // X - ARCHIVE_REASON
-      archiveRow.push(item.sheet);    // Y - SOURCE_SHEET
-      archiveRow.push(archiveId);     // Z - ARCHIVE_ID
+      // Перезаписуємо мета-поля
+      archiveRow[COL.DATE_ARCHIVE] = dateNow;
+      archiveRow[COL.ARCHIVE_ID] = archiveId;
+      // Додаткові мета-колонки за межами основних
+      archiveRow.push(user);          // X - ARCHIVED_BY
+      archiveRow.push(reason);        // Y - ARCHIVE_REASON
+      archiveRow.push(item.sheet);    // Z - SOURCE_SHEET
 
       archiveRows.push(archiveRow);
       successItems.push({ rowNum: rowNum, archiveId: archiveId, srcSheet: sheet });
@@ -901,15 +972,14 @@ function archiveToExternal(payload) {
 
     // === КРОК 1: Batch-запис в архів ===
     var startRow = archiveSheet.getLastRow() + 1;
-    archiveSheet.getRange(startRow, 1, archiveRows.length, 26).setValues(archiveRows);
+    var archiveCols = TOTAL_COLS + 3; // дані (A-W) + ARCHIVED_BY + ARCHIVE_REASON + SOURCE_SHEET
+    archiveSheet.getRange(startRow, 1, archiveRows.length, archiveCols).setValues(archiveRows);
 
     // === КРОК 2: Оновлюємо джерело ===
     for (var k = 0; k < successItems.length; k++) {
       var si = successItems[k];
       si.srcSheet.getRange(si.rowNum, COL.STATUS + 1).setValue('archived');
       si.srcSheet.getRange(si.rowNum, COL.DATE_ARCHIVE + 1).setValue(dateShort);
-      si.srcSheet.getRange(si.rowNum, COL.ARCHIVED_BY + 1).setValue(user);
-      si.srcSheet.getRange(si.rowNum, COL.ARCHIVE_REASON + 1).setValue(reason);
       si.srcSheet.getRange(si.rowNum, COL.ARCHIVE_ID + 1).setValue(si.archiveId);
     }
 
@@ -980,10 +1050,16 @@ function handleDriverStatusUpdate(data) {
     var allData = routeSheet.getDataRange().getValues();
     var rowsUpdated = 0;
     var deliveryNumber = str(data.deliveryNumber);
+    var deliveryId = str(data.deliveryId || data.id || '');
 
     for (var i = 1; i < allData.length; i++) {
-      var num = str(allData[i][COL.NUMBER]);
-      if (num === deliveryNumber) {
+      // Шукаємо по ІД, ТТН або номеру телефону
+      var rowId = str(allData[i][COL.ID]);
+      var rowTtn = str(allData[i][COL.TTN]);
+      var matched = (deliveryId && rowId === deliveryId) ||
+                    (deliveryNumber && rowTtn === deliveryNumber) ||
+                    (deliveryNumber && rowId === deliveryNumber);
+      if (matched) {
         var rowNum = i + 1;
 
         // Записуємо статус посилки (M — parcelStatus)
@@ -1423,6 +1499,66 @@ function sendToArchive(payload) {
 }
 
 // ============================================
+// addPackageToRoute — Додати посилку з Drivers UI
+// ============================================
+function addPackageToRoute(data) {
+  try {
+    var fields = data.fields || {};
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheetName = data.sheet || fields.vehicle;
+    if (!sheetName) {
+      return { success: false, error: 'Не вказано маршрут (sheet/vehicle)' };
+    }
+
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      return { success: false, error: 'Аркуш не знайдено: ' + sheetName };
+    }
+
+    var today = Utilities.formatDate(new Date(), 'Europe/Kiev', 'yyyy-MM-dd');
+    var newId = 'drv_' + new Date().getTime();
+
+    var newRow = new Array(TOTAL_COLS);
+    for (var i = 0; i < TOTAL_COLS; i++) newRow[i] = '';
+
+    // Маппінг полів через FIELD_MAP
+    for (var field in fields) {
+      if (fields.hasOwnProperty(field) && FIELD_MAP.hasOwnProperty(field)) {
+        newRow[FIELD_MAP[field]] = fields[field];
+      }
+    }
+
+    if (!newRow[COL.DATE_REG]) newRow[COL.DATE_REG] = today;
+    if (!newRow[COL.ID]) newRow[COL.ID] = newId;
+    if (!newRow[COL.STATUS]) newRow[COL.STATUS] = 'new';
+
+    sheet.appendRow(newRow);
+    var newRowNum = sheet.getLastRow();
+
+    // Записуємо company_id якщо колонка є
+    var companyId = data.companyId || '';
+    if (companyId) {
+      var compCol = findCompanyIdCol(sheet);
+      if (compCol >= 0) {
+        sheet.getRange(newRowNum, compCol + 1).setValue(companyId);
+      }
+    }
+
+    writeLog('addPackage', sheetName, newRowNum, 'new',
+      'ПіБ: ' + (fields.name || '') + ' | ТТН: ' + (fields.ttn || '') + ' | Тел: ' + (fields.phone || '') + ' | Driver UI');
+
+    return {
+      success: true,
+      sheet: sheetName,
+      rowNum: newRowNum,
+      id: newId
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ============================================
 // ЛОГУВАННЯ — пише в архівну таблицю, аркуш "Логи"
 // ============================================
 var ARCHIVE_SS_ID_LOG = '1Kmf6NF1sJUi-j3SamrhUqz337pcZSvZCUkGxBzari6U';
@@ -1509,4 +1645,267 @@ function menuTestArchive() {
     result.success ? 'OK — зв\'язок працює' : 'ПОМИЛКА: ' + result.error,
     SpreadsheetApp.getUi().ButtonSet.OK
   );
+}
+
+// ============================================
+// ВІДПРАВКА (DISPATCH) — аркуші "(відпр)"
+// Колонки: A:ПІБ  B:№ посилки  C:Місто/Нова Пошта
+//          D:Опис/фото  E:Вага  F:Сума  G:Тип оплати
+//          H:Валюта  I:Конверт  J:ID/Телефон відправника
+//          K:company_id
+// ============================================
+
+var DCOL = {
+  NAME: 0,          // A — ПІБ
+  PARCEL_NUM: 1,    // B — № посилки
+  CITY: 2,          // C — Місто/Нова Пошта
+  DESCRIPTION: 3,   // D — Опис/фото
+  WEIGHT: 4,        // E — Вага
+  AMOUNT: 5,        // F — Сума
+  PAYMENT_TYPE: 6,  // G — Тип оплати
+  CURRENCY: 7,      // H — Валюта
+  ENVELOPE: 8,      // I — Конверт
+  SENDER_PHONE: 9,  // J — ID/Телефон відправника
+  COMPANY_ID: 10    // K — company_id
+};
+var DISPATCH_TOTAL_COLS = 11;
+
+// ============================================
+// getDispatchItems — Читання відправок з аркуша "(відпр)"
+// ============================================
+function getDispatchItems(payload) {
+  try {
+    var sheetName = payload.sheetName || '';
+    if (!sheetName) {
+      return { success: false, error: 'Не вказано аркуш відправки' };
+    }
+
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      return { success: false, error: 'Аркуш не знайдено: ' + sheetName };
+    }
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return { success: true, items: [], count: 0, sheetName: sheetName };
+    }
+
+    var lastCol = sheet.getLastColumn();
+    var numCols = Math.max(lastCol, DISPATCH_TOTAL_COLS);
+    var range = sheet.getRange(2, 1, lastRow - 1, numCols);
+    var data = range.getValues();
+
+    var companyId = payload.companyId || '';
+    var items = [];
+
+    for (var i = 0; i < data.length; i++) {
+      var row = data[i];
+      // Пропускаємо порожні рядки
+      if (!row[DCOL.NAME] && !row[DCOL.PARCEL_NUM] && !row[DCOL.SENDER_PHONE]) continue;
+
+      // Фільтр по company_id
+      if (companyId && row[DCOL.COMPANY_ID] && String(row[DCOL.COMPANY_ID]).trim() !== companyId) continue;
+
+      items.push({
+        rowNum: i + 2,
+        name: String(row[DCOL.NAME] || '').trim(),
+        parcelNum: String(row[DCOL.PARCEL_NUM] || '').trim(),
+        city: String(row[DCOL.CITY] || '').trim(),
+        description: String(row[DCOL.DESCRIPTION] || '').trim(),
+        weight: String(row[DCOL.WEIGHT] || '').trim(),
+        amount: String(row[DCOL.AMOUNT] || '').trim(),
+        paymentType: String(row[DCOL.PAYMENT_TYPE] || '').trim(),
+        currency: String(row[DCOL.CURRENCY] || '').trim(),
+        envelope: String(row[DCOL.ENVELOPE] || '').trim(),
+        senderPhone: String(row[DCOL.SENDER_PHONE] || '').trim(),
+        driverStatus: 'pending'
+      });
+    }
+
+    return {
+      success: true,
+      items: items,
+      count: items.length,
+      sheetName: sheetName
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ============================================
+// addDispatchItem — Додавання відправки в аркуш "(відпр)"
+// ============================================
+function addDispatchItem(payload) {
+  try {
+    var sheetName = payload.sheetName || '';
+    if (!sheetName) {
+      return { success: false, error: 'Не вказано аркуш відправки' };
+    }
+
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      return { success: false, error: 'Аркуш не знайдено: ' + sheetName };
+    }
+
+    var newRow = new Array(DISPATCH_TOTAL_COLS);
+    for (var i = 0; i < DISPATCH_TOTAL_COLS; i++) newRow[i] = '';
+
+    newRow[DCOL.NAME] = payload.name || '';
+    newRow[DCOL.PARCEL_NUM] = payload.parcelNum || '';
+    newRow[DCOL.CITY] = payload.city || '';
+    newRow[DCOL.DESCRIPTION] = payload.description || '';
+    newRow[DCOL.WEIGHT] = payload.weight || '';
+    newRow[DCOL.AMOUNT] = payload.amount || '';
+    newRow[DCOL.PAYMENT_TYPE] = payload.paymentType || '';
+    newRow[DCOL.CURRENCY] = payload.currency || '';
+    newRow[DCOL.ENVELOPE] = payload.envelope || '';
+    newRow[DCOL.SENDER_PHONE] = payload.senderPhone || '';
+    newRow[DCOL.COMPANY_ID] = payload.companyId || '';
+
+    sheet.appendRow(newRow);
+    var newRowNum = sheet.getLastRow();
+
+    writeLog('addDispatchItem', sheetName, newRowNum, 'new',
+      'ПІБ: ' + (payload.name || '') + ' | Тел: ' + (payload.senderPhone || '') + ' | Driver UI');
+
+    return {
+      success: true,
+      sheet: sheetName,
+      rowNum: newRowNum
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ============================================
+// updateDispatchStatus — Оновлення статусу відправки водієм
+// ============================================
+function updateDispatchStatus(data) {
+  try {
+    var sheetName = data.sheetName || '';
+    var rowNum = data.rowNum || 0;
+    var status = data.status || 'pending';
+
+    if (!sheetName || !rowNum) {
+      return { success: false, error: 'Не вказано аркуш або рядок' };
+    }
+
+    // Для відпр аркушів статус зберігається лише в логах
+    // (відпр аркуші не мають колонки статусу)
+    writeLog('updateDispatchStatus', sheetName, rowNum, status,
+      'Driver: ' + (data.driverId || '') + ' | Reason: ' + (data.cancelReason || ''));
+
+    return { success: true, rowNum: rowNum, status: status };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ============================================
+// editDispatchItem — Редагування відправки в аркуші "(відпр)"
+// ============================================
+function editDispatchItem(payload) {
+  try {
+    var sheetName = payload.sheetName || '';
+    var rowNum = payload.rowNum || 0;
+    if (!sheetName || !rowNum) {
+      return { success: false, error: 'Не вказано аркуш або рядок' };
+    }
+
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      return { success: false, error: 'Аркуш не знайдено: ' + sheetName };
+    }
+    if (rowNum > sheet.getLastRow()) {
+      return { success: false, error: 'Рядок ' + rowNum + ' не існує' };
+    }
+
+    var fieldMap = {
+      name: DCOL.NAME,
+      parcelNum: DCOL.PARCEL_NUM,
+      city: DCOL.CITY,
+      description: DCOL.DESCRIPTION,
+      weight: DCOL.WEIGHT,
+      amount: DCOL.AMOUNT,
+      paymentType: DCOL.PAYMENT_TYPE,
+      currency: DCOL.CURRENCY,
+      envelope: DCOL.ENVELOPE,
+      senderPhone: DCOL.SENDER_PHONE
+    };
+
+    var fields = payload.fields || {};
+    var updated = [];
+    for (var key in fields) {
+      if (fields.hasOwnProperty(key) && fieldMap.hasOwnProperty(key)) {
+        sheet.getRange(rowNum, fieldMap[key] + 1).setValue(fields[key]);
+        updated.push(key);
+      }
+    }
+
+    writeLog('editDispatchItem', sheetName, rowNum, updated.join(', '), JSON.stringify(fields));
+
+    return { success: true, rowNum: rowNum, updated: updated };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+// ============================================
+// editRoutePackage — Редагування посилки в маршрутному аркуші
+// ============================================
+function editRoutePackage(payload) {
+  try {
+    var sheetName = payload.sheetName || '';
+    var rowNum = payload.rowNum || 0;
+    if (!sheetName || !rowNum) {
+      return { success: false, error: 'Не вказано аркуш або рядок' };
+    }
+
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      return { success: false, error: 'Аркуш не знайдено: ' + sheetName };
+    }
+    if (rowNum > sheet.getLastRow()) {
+      return { success: false, error: 'Рядок ' + rowNum + ' не існує' };
+    }
+
+    var fieldMap = {
+      direction: COL.DIRECTION,
+      ttn: COL.TTN,
+      weight: COL.WEIGHT,
+      address: COL.ADDRESS,
+      phone: COL.PHONE,
+      amount: COL.AMOUNT,
+      payStatus: COL.PAY_STATUS,
+      payment: COL.PAYMENT,
+      phoneReg: COL.PHONE_REG,
+      note: COL.NOTE,
+      parcelStatus: COL.PARCEL_STATUS,
+      name: COL.NAME,
+      timing: COL.TIMING,
+      smsNote: COL.SMS_NOTE,
+      vehicle: COL.VEHICLE
+    };
+
+    var fields = payload.fields || {};
+    var updated = [];
+    for (var key in fields) {
+      if (fields.hasOwnProperty(key) && fieldMap.hasOwnProperty(key)) {
+        sheet.getRange(rowNum, fieldMap[key] + 1).setValue(fields[key]);
+        updated.push(key);
+      }
+    }
+
+    writeLog('editRoutePackage', sheetName, rowNum, updated.join(', '), JSON.stringify(fields));
+
+    return { success: true, rowNum: rowNum, updated: updated };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 }
