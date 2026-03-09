@@ -5336,6 +5336,14 @@ function bulkArchive() {
                 }
             }
         });
+
+        // Видаляємо маршрутних з routePassengers (як executeRouteStatusAction)
+        const archivedUids = new Set(allFoundPackages.filter(p => p._isRouteData).map(p => p._uid));
+        if (archivedUids.size > 0) {
+            routePassengers = routePassengers.filter(rp => !archivedUids.has(rp._uid));
+            routeStats.total = routePassengers.length;
+        }
+
         refreshAfterAction();
         saveSettings();
         updateAllCounts();
@@ -5502,9 +5510,13 @@ function bulkDeleteForever() {
     
     showLoader('Видаляю назавжди...', '');
     
-    // TODO: API для повного видалення
     // Поки що просто ховаємо локально
+    const deletedRouteUids = new Set();
     selectedIds.forEach(uid => {
+        const p = findPackageByUid(uid);
+        if (p && p._isRouteData) {
+            deletedRouteUids.add(p._uid);
+        }
         const idx = packages.findIndex(p => {
             const pUid = (p._sheet && p._rowNum) ? `${p._sheet}_${p._rowNum}` : `local_${packages.indexOf(p)}`;
             return pUid === uid;
@@ -5513,7 +5525,13 @@ function bulkDeleteForever() {
             packages.splice(idx, 1);
         }
     });
-    
+
+    // Видаляємо маршрутних з routePassengers
+    if (deletedRouteUids.size > 0) {
+        routePassengers = routePassengers.filter(rp => !deletedRouteUids.has(rp._uid));
+        routeStats.total = routePassengers.length;
+    }
+
     const deletedCount = selectedIds.size;
     hideLoader();
     saveSettings();
@@ -5528,6 +5546,7 @@ function applyStatusToSelected(status, note) {
 
     const today = new Date().toISOString().split('T')[0];
     let count = 0;
+    const archivedRouteUids = new Set();
 
     selectedIds.forEach(uid => {
         const p = findPackageByUid(uid);
@@ -5539,16 +5558,55 @@ function applyStatusToSelected(status, note) {
             p.archiveType = status; // refused, transferred, deleted, archived
             p.status = 'archived'; // Всі дії ведуть в Архів
             p.statusDate = today;
+            p.archivedBy = 'archived_' + getCompanyId();
             p.note = note + (p.note ? ` | ${p.note}` : '');
             p.isNew = false;
             count++;
 
-            // Оновлюємо на сервері якщо є дані
-            if (p._sheet || p.sheet) {
-                updatePackageOnServer(p);
+            // Для маршрутних — оновлюємо головний пакет (як executeRouteStatusAction)
+            if (p._isRouteData) {
+                archivedRouteUids.add(p._uid);
+                const mainPkg = packages.find(mp => String(mp.id) === String(p.id));
+                if (mainPkg && mainPkg !== p) {
+                    if (mainPkg.status !== 'archived') mainPkg.prevStatus = mainPkg.status || 'new';
+                    mainPkg.status = 'archived';
+                    mainPkg.archiveType = status;
+                    mainPkg.archiveDate = today;
+                    mainPkg.statusDate = today;
+                    mainPkg.archivedBy = 'archived_' + getCompanyId();
+                    if (note) mainPkg.note = note + (mainPkg.note ? ` | ${mainPkg.note}` : '');
+                    updatePackageOnServer(mainPkg);
+                }
+                // Серверне архівування маршрутного пакету
+                const pSheet = p._sheet || p.sheet;
+                const pRowNum = p._rowNum || p.rowNum;
+                if (pSheet && pRowNum) {
+                    fetch(ROUTE_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify({
+                            action: 'archivePackages',
+                            companyId: getCompanyId(),
+                            packages: [{ sheet: pSheet, rowNum: pRowNum }],
+                            user: 'crm',
+                            reason: status
+                        })
+                    }).catch(() => {});
+                }
+            } else {
+                // Оновлюємо на сервері якщо є дані (основний пакет)
+                if (p._sheet || p.sheet) {
+                    updatePackageOnServer(p);
+                }
             }
         }
     });
+
+    // Видаляємо маршрутних з routePassengers (як executeRouteStatusAction)
+    if (archivedRouteUids.size > 0) {
+        routePassengers = routePassengers.filter(rp => !archivedRouteUids.has(rp._uid));
+        routeStats.total = routePassengers.length;
+    }
 
     hideLoader();
     saveSettings();
