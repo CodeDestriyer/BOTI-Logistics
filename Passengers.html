@@ -6773,16 +6773,28 @@ function getUserInitials() {
 const TAG_PROXY_URL = 'https://botisystem.com/yuratransportation/manager/proxy_pass_19v.php';
 
 function openTagModal() {
-    if (selectedIds.size === 0) return showToast('⚠️ Оберіть пасажирів');
-    document.getElementById('tagSelectedCount').textContent = selectedIds.size;
-    document.getElementById('tagNameInput').value = '';
-    document.getElementById('tagFormBody').style.display = '';
-    document.getElementById('tagProgressBody').style.display = 'none';
-    document.getElementById('tagFormFooter').style.display = '';
-    document.getElementById('tagResultFooter').style.display = 'none';
-    document.getElementById('tagLog').innerHTML = '';
-    document.getElementById('tagModal').classList.add('show');
-    setTimeout(() => document.getElementById('tagNameInput').focus(), 100);
+    Swal.fire({
+        icon: 'info',
+        title: '🏷️ Тегування — Бета',
+        html: `
+            <div style="text-align:left; font-size:14px; line-height:1.7; color:#ccc;">
+                <p style="margin-bottom:12px;">Ця функція наразі <b style="color:#facc15;">недоступна у бета-версії</b>, але скоро буде запущена!</p>
+                <p style="margin-bottom:8px;"><b style="color:#a78bfa;">Що вона дозволятиме:</b></p>
+                <ul style="padding-left:18px; margin:0;">
+                    <li>🚩 Позначати клієнтів тегами — <i>«Проблемний клієнт»</i>, <i>«VIP»</i>, <i>«Постійний»</i> тощо</li>
+                    <li>🔍 Швидко фільтрувати та знаходити клієнтів за тегами</li>
+                    <li>📊 Групувати та аналізувати клієнтську базу</li>
+                    <li>⚡ Масово тегувати вибраних пасажирів одним кліком</li>
+                </ul>
+                <p style="margin-top:12px; font-size:13px; color:#888;">Слідкуйте за оновленнями — функція з'явиться найближчим часом.</p>
+            </div>
+        `,
+        background: '#1e1e2e',
+        color: '#fff',
+        confirmButtonText: 'Зрозуміло 👌',
+        confirmButtonColor: '#7c3aed',
+        customClass: { popup: 'swal-dark-popup' }
+    });
 }
 
 function closeTagModal() {
