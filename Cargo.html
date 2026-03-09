@@ -3444,7 +3444,6 @@ function render() {
                 <button class="btn-card-action btn-msg" onclick="openMessengerMenu('${p.phone}',event)">💬 Писати</button>
                 <button class="btn-card-action btn-map" onclick="event.stopPropagation();openMapModal('${uk}')">🗺️ Карта</button>
                 <button class="btn-card-action btn-edit" onclick="event.stopPropagation();editPackage('${uk}')">✏️ Редагувати</button>
-                <button class="btn-card-action" style="background:#d1fae5;color:#065f46;" onclick="event.stopPropagation();restorePackageToOriginal('${uk}')">↩️ Відновити</button>
                 <button class="btn-card-action btn-delete" onclick="event.stopPropagation();deletePackage('${uk}')">🗑️ Видалити</button>
             </div>
         </div>`;
@@ -4965,26 +4964,25 @@ function bulkRestore() {
         return showToast('⚠️ Немає заявок для відновлення');
     }
 
-    showLoader('Відновлюю...', '');
-
-    // Відновлюємо локально — повертаємо на попередній статус
-    const restoreLocally = () => {
-        selectedIds.forEach(uid => {
-            const p = findPackageByUid(uid);
-            if (p && p.status === 'archived') {
-                p.status = p.prevStatus || 'new';
-                p.statusDate = '';
-                delete p.prevStatus;
-                delete p.archiveType;
-                // Очищаємо причину відмови/пересадки з примітки
-                if (p.note) {
-                    p.note = p.note.replace(/^(Відмова|Перенос|Пересадка|Видалено):.*?\|?\s*/i, '');
-                }
+    // Відновлюємо локально одразу
+    selectedIds.forEach(uid => {
+        const p = findPackageByUid(uid);
+        if (p && p.status === 'archived') {
+            p.status = p.prevStatus || 'new';
+            p.statusDate = '';
+            delete p.prevStatus;
+            delete p.archiveType;
+            if (p.note) {
+                p.note = p.note.replace(/^(Відмова|Перенос|Пересадка|Видалено):.*?\|?\s*/i, '');
             }
-        });
-    };
+        }
+    });
+    saveSettings();
+    refreshAfterAction();
+    updateAllCounts();
+    showToast(`↩️ Відновлено: ${totalCount}`);
 
-    // Формуємо запити
+    // Відправляємо на сервер (fire-and-forget)
     const requests = [];
     if (mainPackages.length > 0) {
         requests.push(
@@ -5013,41 +5011,9 @@ function bulkRestore() {
         );
     }
 
-    if (requests.length === 0) {
-        // Тільки локальні записи
-        hideLoader();
-        restoreLocally();
-        saveSettings();
-        refreshAfterAction();
-        updateAllCounts();
-        showToast(`↩️ Відновлено: ${totalCount}`);
-        return;
+    if (requests.length > 0) {
+        Promise.all(requests).catch(err => console.error('Restore error:', err));
     }
-
-    Promise.all(requests)
-    .then(results => {
-        hideLoader();
-        const allSuccess = results.every(d => d.success);
-        if (allSuccess) {
-            restoreLocally();
-            refreshAfterAction();
-            updateAllCounts();
-            const total = results.reduce((s, d) => s + (d.restored || d.changed || 0), 0);
-            showToast(`↩️ Відновлено: ${total || totalCount}`);
-        } else {
-            const errors = results.filter(d => !d.success).map(d => d.error).join('; ');
-            showToast('❌ ' + errors);
-        }
-    })
-    .catch(err => {
-        hideLoader();
-        console.error('Restore error:', err);
-        restoreLocally();
-        saveSettings();
-        refreshAfterAction();
-        updateAllCounts();
-        showToast('↩️ Відновлено локально');
-    });
 }
 
 // Відмітити як сповіщених
@@ -5363,10 +5329,12 @@ function bulkArchive() {
         renderCalendars();
     }
 
-    // Якщо є серверні дані — відправляємо на сервер
-    if (mainPackages.length > 0 || routePackages.length > 0) {
-        showLoader('Архівую...', '');
+    // Одразу оновлюємо UI (не чекаємо на сервер)
+    archiveLocally();
+    showToast(`📦 Архівовано: ${allFoundPackages.length}`);
 
+    // Якщо є серверні дані — відправляємо на сервер (fire-and-forget)
+    if (mainPackages.length > 0 || routePackages.length > 0) {
         const requests = [];
         if (mainPackages.length > 0) {
             requests.push(
@@ -5397,24 +5365,10 @@ function bulkArchive() {
             );
         }
 
-        Promise.all(requests)
-        .then(results => {
-            hideLoader();
-            archiveLocally();
-            const total = results.reduce((s, d) => s + (d.archived || d.changed || allFoundPackages.length), 0);
-            showToast(`📦 Архівовано: ${total || allFoundPackages.length}`);
-        })
-        .catch(err => {
-            hideLoader();
+        Promise.all(requests).catch(err => {
             console.warn('Archive fetch error:', err);
-            archiveLocally();
-            showToast(`📦 Архівовано: ${allFoundPackages.length}`);
             setTimeout(() => silentSync(), 2000);
         });
-    } else {
-        // Немає серверних даних — архівуємо тільки локально
-        archiveLocally();
-        showToast(`📦 Архівовано: ${allFoundPackages.length}`);
     }
 }
 
@@ -6261,11 +6215,17 @@ function confirmDeletePassenger(uid) {
     // Закриваємо дії картки
     openActionsId = null;
 
-    // Якщо є серверні дані - архівуємо на сервері
+    // Одразу оновлюємо UI (не чекаємо на сервер)
+    saveSettings();
+    render();
+    updateAllCounts();
+    renderCalendars();
+    showToast('🗑️ Переміщено в архів');
+
+    // Якщо є серверні дані - архівуємо на сервері (fire-and-forget)
     const pSheet = p._sheet || p.sheet;
     const pRowNum = p._rowNum || p.rowNum;
     if (pSheet && pRowNum) {
-        showLoader('Видалення...', '');
         const isRoute = !!p._isRouteData;
         const apiUrl = isRoute ? ROUTE_API_URL : API_URL;
         const body = isRoute
@@ -6276,34 +6236,7 @@ function confirmDeletePassenger(uid) {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify(body)
-        })
-        .then(r => r.json())
-        .then(data => {
-            hideLoader();
-            if (data.success) {
-                saveSettings();
-                render();
-                updateAllCounts();
-                showToast('🗑️ Переміщено в архів');
-            } else {
-                showToast('❌ ' + (data.error || 'Помилка'));
-            }
-        })
-        .catch(err => {
-            hideLoader();
-            console.error('Delete error:', err);
-            // Все одно зберігаємо локально
-            saveSettings();
-            render();
-            updateAllCounts();
-            showToast('🗑️ Видалено локально');
-        });
-    } else {
-        // Локальний лід - просто оновлюємо
-        saveSettings();
-        render();
-        updateAllCounts();
-        showToast('🗑️ Переміщено в архів');
+        }).catch(err => console.error('Delete error:', err));
     }
 }
 
