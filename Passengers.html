@@ -6773,28 +6773,38 @@ function getUserInitials() {
 const TAG_PROXY_URL = 'https://botisystem.com/yuratransportation/manager/proxy_pass_19v.php';
 
 function openTagModal() {
-    Swal.fire({
-        icon: 'info',
-        title: '🏷️ Тегування — Бета',
-        html: `
-            <div style="text-align:left; font-size:14px; line-height:1.7; color:#ccc;">
-                <p style="margin-bottom:12px;">Ця функція наразі <b style="color:#facc15;">недоступна у бета-версії</b>, але скоро буде запущена!</p>
-                <p style="margin-bottom:8px;"><b style="color:#a78bfa;">Що вона дозволятиме:</b></p>
-                <ul style="padding-left:18px; margin:0;">
-                    <li>🚩 Позначати клієнтів тегами — <i>«Проблемний клієнт»</i>, <i>«VIP»</i>, <i>«Постійний»</i> тощо</li>
-                    <li>🔍 Швидко фільтрувати та знаходити клієнтів за тегами</li>
-                    <li>📊 Групувати та аналізувати клієнтську базу</li>
-                    <li>⚡ Масово тегувати вибраних пасажирів одним кліком</li>
-                </ul>
-                <p style="margin-top:12px; font-size:13px; color:#888;">Слідкуйте за оновленнями — функція з'явиться найближчим часом.</p>
+    // Видаляємо попередній оверлей якщо є
+    const prev = document.getElementById('betaTagOverlay');
+    if (prev) prev.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'betaTagOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s ease;';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+
+    overlay.innerHTML = `
+        <div style="background:#1e1e2e;border-radius:16px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);overflow:hidden;animation:slideUp 0.25s ease;">
+            <div style="background:linear-gradient(135deg,#7c3aed,#6d28d9);padding:18px 24px;display:flex;align-items:center;gap:10px;">
+                <span style="font-size:24px;">🏷️</span>
+                <span style="color:white;font-size:17px;font-weight:700;">Тегування — Бета</span>
             </div>
-        `,
-        background: '#1e1e2e',
-        color: '#fff',
-        confirmButtonText: 'Зрозуміло 👌',
-        confirmButtonColor: '#7c3aed',
-        customClass: { popup: 'swal-dark-popup' }
-    });
+            <div style="padding:24px;text-align:left;font-size:14px;line-height:1.8;color:#ccc;">
+                <p style="margin:0 0 14px;">Ця функція наразі <b style="color:#facc15;">недоступна у бета-версії</b>, але скоро буде запущена!</p>
+                <p style="margin:0 0 10px;"><b style="color:#a78bfa;">Що вона дозволятиме:</b></p>
+                <ul style="padding-left:20px;margin:0 0 14px;">
+                    <li style="margin-bottom:6px;">🚩 Позначати клієнтів тегами — <i>«Проблемний клієнт»</i>, <i>«VIP»</i>, <i>«Постійний»</i>, <i>«Борг»</i> тощо</li>
+                    <li style="margin-bottom:6px;">🔍 Швидко фільтрувати та знаходити клієнтів за тегами</li>
+                    <li style="margin-bottom:6px;">📊 Групувати та аналізувати клієнтську базу</li>
+                    <li style="margin-bottom:6px;">⚡ Масово тегувати вибраних пасажирів одним кліком</li>
+                </ul>
+                <p style="margin:0;font-size:13px;color:#888;">Слідкуйте за оновленнями — функція з'явиться найближчим часом 🚀</p>
+            </div>
+            <div style="padding:0 24px 20px;text-align:right;">
+                <button onclick="document.getElementById('betaTagOverlay').remove()" style="padding:10px 28px;background:#7c3aed;color:white;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;transition:background 0.2s;" onmouseover="this.style.background='#6d28d9'" onmouseout="this.style.background='#7c3aed'">Зрозуміло 👌</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
 }
 
 function closeTagModal() {
