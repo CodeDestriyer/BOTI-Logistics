@@ -6783,24 +6783,24 @@ function openTagModal() {
     overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
 
     overlay.innerHTML = `
-        <div style="background:#1e1e2e;border-radius:16px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);overflow:hidden;animation:slideUp 0.25s ease;">
-            <div style="background:linear-gradient(135deg,#7c3aed,#6d28d9);padding:18px 24px;display:flex;align-items:center;gap:10px;">
+        <div style="background:#ffffff;border-radius:16px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.15);overflow:hidden;animation:slideUp 0.25s ease;border:1px solid #e2e8f0;">
+            <div style="background:linear-gradient(135deg,#f8fafc,#edf2f7);padding:18px 24px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #e2e8f0;">
                 <span style="font-size:24px;">🏷️</span>
-                <span style="color:white;font-size:17px;font-weight:700;">Тегування — Бета</span>
+                <span style="color:#1e293b;font-size:17px;font-weight:700;">Тегування</span>
             </div>
-            <div style="padding:24px;text-align:left;font-size:14px;line-height:1.8;color:#ccc;">
-                <p style="margin:0 0 14px;">Ця функція наразі <b style="color:#facc15;">недоступна у бета-версії</b>, але скоро буде запущена!</p>
-                <p style="margin:0 0 10px;"><b style="color:#a78bfa;">Що вона дозволятиме:</b></p>
+            <div style="padding:24px;text-align:left;font-size:14px;line-height:1.8;color:#475569;">
+                <p style="margin:0 0 14px;">Ця функція <b style="color:#1a3a5e;">скоро буде запущена!</b></p>
+                <p style="margin:0 0 10px;"><b style="color:#1a3a5e;">Що вона дозволятиме:</b></p>
                 <ul style="padding-left:20px;margin:0 0 14px;">
                     <li style="margin-bottom:6px;">🚩 Позначати клієнтів тегами — <i>«Проблемний клієнт»</i>, <i>«VIP»</i>, <i>«Постійний»</i>, <i>«Борг»</i> тощо</li>
                     <li style="margin-bottom:6px;">🔍 Швидко фільтрувати та знаходити клієнтів за тегами</li>
                     <li style="margin-bottom:6px;">📊 Групувати та аналізувати клієнтську базу</li>
                     <li style="margin-bottom:6px;">⚡ Масово тегувати вибраних пасажирів одним кліком</li>
                 </ul>
-                <p style="margin:0;font-size:13px;color:#888;">Слідкуйте за оновленнями — функція з'явиться найближчим часом 🚀</p>
+                <p style="margin:0;font-size:13px;color:#94a3b8;">Слідкуйте за оновленнями — функція з'явиться найближчим часом 🚀</p>
             </div>
             <div style="padding:0 24px 20px;text-align:right;">
-                <button onclick="document.getElementById('betaTagOverlay').remove()" style="padding:10px 28px;background:#7c3aed;color:white;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;transition:background 0.2s;" onmouseover="this.style.background='#6d28d9'" onmouseout="this.style.background='#7c3aed'">Зрозуміло 👌</button>
+                <button onclick="document.getElementById('betaTagOverlay').remove()" style="padding:10px 28px;background:linear-gradient(135deg,#1a3a5e,#0d1f3c);color:white;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;transition:opacity 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">Зрозуміло 👌</button>
             </div>
         </div>
     `;
