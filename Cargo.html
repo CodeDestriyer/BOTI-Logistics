@@ -4392,12 +4392,153 @@ function renderRoutePassengers() {
                 <button class="btn-card-action btn-msg" onclick="openMessengerMenu('${p.phone}',event)">💬 Писати</button>
                 <button class="btn-card-action btn-map" onclick="event.stopPropagation();openMapModal('${uk}')">🗺️ Карта</button>
                 <button class="btn-card-action btn-edit" onclick="event.stopPropagation();editPackage('${uk}')">✏️ Редагувати</button>
+                <button class="btn-card-action" style="background:#fee2e2;color:#dc2626;" onclick="event.stopPropagation();routeRefusePackage('${uk}')">❌ Відмова</button>
+                <button class="btn-card-action" style="background:#e0e7ff;color:#4338ca;" onclick="event.stopPropagation();routeArchivePackage('${uk}')">📦 Архів</button>
                 <button class="btn-card-action btn-delete" onclick="event.stopPropagation();showRouteDeleteChoice('${uk}')">🗑️ Видалити</button>
             </div>
         </div>`;
     });
 
     container.innerHTML = html;
+}
+
+// Відмова посилки в маршруті
+function routeRefusePackage(uid) {
+    const p = routePassengers.find(rp => rp._uid === uid);
+    if (!p) return;
+
+    document.getElementById('routeRefuseModal')?.remove();
+
+    const reasons = [
+        'Ціна доставки завелика',
+        'Дата відправки не підходить',
+        'Знайшов іншу доставку',
+        'Передумав відправляти',
+        'Посилка не готова',
+        'Габарити не підходять',
+        'Інше'
+    ];
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay show';
+    modal.id = 'routeRefuseModal';
+    modal.innerHTML = `
+        <div class="modal" style="max-width:400px;">
+            <div class="modal-header" style="background:#fee2e2;">
+                <span class="modal-title" style="color:#dc2626;">❌ Відмова</span>
+                <button class="modal-close" onclick="document.getElementById('routeRefuseModal').remove()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div style="text-align:center;margin-bottom:12px;">
+                    <div style="font-size:14px;font-weight:600;">${p.name || 'Без імені'}</div>
+                    <div style="font-size:12px;color:var(--text-secondary);">${p.phone || '—'}</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    ${reasons.map(r => `
+                        <label style="display:flex;align-items:center;gap:10px;padding:10px;border:2px solid var(--border);border-radius:8px;cursor:pointer;">
+                            <input type="radio" name="routeRefuseReason" value="${r}" style="width:18px;height:18px;">
+                            <span style="font-size:13px;">${r}</span>
+                        </label>
+                    `).join('')}
+                </div>
+                <div id="routeRefuseOtherWrap" style="display:none;margin-top:10px;">
+                    <input type="text" id="routeRefuseOtherText" placeholder="Вкажіть причину..." style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-family:inherit;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="document.getElementById('routeRefuseModal').remove()">Скасувати</button>
+                <button class="btn-save" style="background:#dc2626;" onclick="confirmRouteRefuse('${uid}')">❌ Відмовити</button>
+            </div>
+        </div>
+    `;
+    modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+    document.body.appendChild(modal);
+
+    modal.querySelectorAll('input[name="routeRefuseReason"]').forEach(input => {
+        input.addEventListener('change', () => {
+            document.getElementById('routeRefuseOtherWrap').style.display =
+                input.value === 'Інше' ? 'block' : 'none';
+        });
+    });
+}
+
+function confirmRouteRefuse(uid) {
+    const selected = document.querySelector('input[name="routeRefuseReason"]:checked');
+    if (!selected) return showToast('⚠️ Оберіть причину');
+
+    let reason = selected.value;
+    if (reason === 'Інше') {
+        reason = document.getElementById('routeRefuseOtherText')?.value || 'Інше';
+    }
+
+    document.getElementById('routeRefuseModal').remove();
+    executeRouteStatusAction(uid, 'refused', `Відмова: ${reason}`);
+}
+
+// Архівація посилки в маршруті
+function routeArchivePackage(uid) {
+    const p = routePassengers.find(rp => rp._uid === uid);
+    if (!p) return;
+
+    if (!confirm(`📦 Архівувати посилку?\n\n${p.name || 'Без імені'} (${p.phone || '—'})\n\nПосилка зникне з маршруту.`)) return;
+
+    executeRouteStatusAction(uid, 'archived', '');
+}
+
+// Універсальна функція зміни статусу посилки в маршруті
+function executeRouteStatusAction(uid, status, noteText) {
+    const p = routePassengers.find(rp => rp._uid === uid);
+    if (!p) return;
+
+    const sheetName = p._routeSheet || currentRouteVehicle?.routeSheet || p._vehicleName;
+    if (!sheetName) return showToast('Невідомий аркуш маршруту');
+
+    const statusNames = { 'refused': '❌ Відмова', 'deleted': '🗑️ Видалено', 'archived': '📦 Архів' };
+    showLoader((statusNames[status] || 'Обробка') + '...', '');
+
+    // 1) Архівуємо в маршрутній таблиці з правильним reason (= status)
+    fetch(ROUTE_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+            action: 'archivePackages',
+            companyId: getCompanyId(),
+            packages: [{ sheet: sheetName, rowNum: p.rowNum }],
+            user: 'crm',
+            reason: status
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        // 2) Оновлюємо головний список (основна таблиця посилок)
+        const mainPkg = packages.find(mp => String(mp.id) === String(p.id));
+        if (mainPkg) {
+            if (mainPkg.status !== 'archived') mainPkg.prevStatus = mainPkg.status || 'new';
+            mainPkg.status = 'archived';
+            mainPkg.archiveType = status;
+            mainPkg.archiveDate = new Date().toISOString().split('T')[0];
+            mainPkg.statusDate = mainPkg.archiveDate;
+            mainPkg.archivedBy = 'archived_' + getCompanyId();
+            if (noteText) mainPkg.note = noteText + (mainPkg.note ? ` | ${mainPkg.note}` : '');
+            updatePackageOnServer(mainPkg);
+        }
+
+        hideLoader();
+
+        // 3) Прибираємо з локального масиву маршруту
+        routePassengers = routePassengers.filter(rp => rp._uid !== uid);
+        routeStats.total = routePassengers.length;
+        openActionsId = null;
+        renderRoutePassengers();
+        updateAllCounts();
+        saveSettings();
+        showToast(`${statusNames[status] || '📦 Архів'} → готово`);
+    })
+    .catch(err => {
+        hideLoader();
+        showToast('❌ Помилка мережі');
+        console.error('Route status action error:', err);
+    });
 }
 
 // Збереження інлайн-полів для маршрутних карток
@@ -4501,48 +4642,7 @@ function deleteFromRouteOnly(uid) {
 // Видалити з маршруту + в корзину (архів)
 function deleteFromRouteAndTrash(uid) {
     document.getElementById('routeDeleteChoiceModal')?.remove();
-    const p = routePassengers.find(rp => rp._uid === uid);
-    if (!p) return;
-
-    const sheetName = p._routeSheet || currentRouteVehicle?.routeSheet || p._vehicleName;
-    if (!sheetName) return showToast('Невідомий аркуш маршруту');
-
-    showLoader('Видаляю...', '');
-
-    // 1) Архівуємо в маршруті
-    fetch(ROUTE_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-            action: 'archivePackages',
-            companyId: getCompanyId(),
-            packages: [{ sheet: sheetName, rowNum: p.rowNum }],
-            user: 'crm',
-            reason: 'route_delete_trash'
-        })
-    })
-    .then(r => r.json())
-    .then(data => {
-        // 2) Архівуємо в головному списку
-        const mainPkg = packages.find(mp => String(mp.id) === String(p.id));
-        if (mainPkg) {
-            mainPkg.status = 'archived';
-            mainPkg.archiveType = 'deleted';
-            mainPkg.archiveDate = new Date().toISOString().split('T')[0];
-            mainPkg.statusDate = mainPkg.archiveDate;
-            mainPkg.archivedBy = 'archived_' + getCompanyId();
-            updatePackageOnServer(mainPkg);
-            saveSettings();
-        }
-
-        hideLoader();
-        routePassengers = routePassengers.filter(rp => rp._uid !== uid);
-        routeStats.total = routePassengers.length;
-        renderRoutePassengers();
-        updateAllCounts();
-        showToast('🗑️ Видалено в корзину');
-    })
-    .catch(err => { hideLoader(); showToast('❌ Помилка мережі'); });
+    executeRouteStatusAction(uid, 'deleted', '');
 }
 
 // Фільтр по статусу в маршруті

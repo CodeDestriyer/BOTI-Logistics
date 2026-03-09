@@ -402,6 +402,10 @@ function getRoutePackages(payload) {
         if (rowCompanyId !== companyId.toLowerCase()) continue;
       }
 
+      // Пропускаємо архівовані/видалені/відмовлені
+      var crmStatus = str(row[COL.STATUS]).toLowerCase();
+      if (ARCHIVE_STATUSES.indexOf(crmStatus) !== -1) continue;
+
       packages.push({
         rowNum: i + 2,
         ttn: str(row[COL.TTN]),
@@ -976,9 +980,14 @@ function archiveToExternal(payload) {
     archiveSheet.getRange(startRow, 1, archiveRows.length, archiveCols).setValues(archiveRows);
 
     // === КРОК 2: Оновлюємо джерело ===
+    // Визначаємо правильний статус: refused/deleted/archived залежно від reason
+    var archiveStatus = 'archived';
+    if (reason === 'refused' || reason === 'deleted' || reason === 'transferred') {
+      archiveStatus = reason;
+    }
     for (var k = 0; k < successItems.length; k++) {
       var si = successItems[k];
-      si.srcSheet.getRange(si.rowNum, COL.STATUS + 1).setValue('archived');
+      si.srcSheet.getRange(si.rowNum, COL.STATUS + 1).setValue(archiveStatus);
       si.srcSheet.getRange(si.rowNum, COL.DATE_ARCHIVE + 1).setValue(dateShort);
       si.srcSheet.getRange(si.rowNum, COL.ARCHIVE_ID + 1).setValue(si.archiveId);
     }
