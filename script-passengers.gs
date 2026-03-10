@@ -647,6 +647,10 @@ function changePassengersStatus(payload, newStatus) {
 
       if (ARCHIVE_STATUSES.indexOf(newStatus) !== -1) {
         sheet.getRange(row, COL.DATE_ARCHIVE + 1).setValue(today);
+      } else {
+        // Відновлення: очищаємо архівні поля
+        sheet.getRange(row, COL.DATE_ARCHIVE + 1).setValue('');
+        sheet.getRange(row, COL.ARCHIVE_ID + 1).setValue('');
       }
 
       if (note) {

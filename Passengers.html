@@ -4444,6 +4444,10 @@ function restorePassenger(id) {
     delete p.prevStatus;
     delete p.archiveType;
     p.statusDate = '';
+    // Очищаємо причину з примітки
+    if (p.note) {
+        p.note = p.note.replace(/^(Відмова|Пересадка|Перенос|Видалено):.*?\|?\s*/i, '');
+    }
     render(); updateAllCounts(); renderCalendars();
     showToast('♻️ Відновлено');
 
@@ -4451,13 +4455,15 @@ function restorePassenger(id) {
     const sheet = p._sheet;
     const rowNum = p._rowNum;
     if (sheet && rowNum) {
-        fetch(API_URL, {
+        const isRoute = !!p._isRouteData;
+        const apiUrl = isRoute ? ROUTE_API_URL : API_URL;
+        const body = isRoute
+            ? { action: 'restorePassengers', companyId: getCompanyId(), passengers: [{ sheet, rowNum }] }
+            : { action: 'restorePassengers', payload: { passengers: [{ sheet, rowNum }] } };
+        fetch(apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({
-                action: 'restorePassengers',
-                payload: { passengers: [{ sheet, rowNum }] }
-            })
+            body: JSON.stringify(body)
         })
         .then(r => r.text())
         .then(t => { try { return JSON.parse(t); } catch(e) { return { success: true }; } })
@@ -4468,22 +4474,25 @@ function restorePassenger(id) {
 function bulkRestore() {
     if (selectedIds.size === 0) return showToast('⚠️ Оберіть заявки');
 
-    // Збираємо дані для API
-    const passengersToRestore = [];
+    // Збираємо дані для API (розділяємо main і route)
+    const mainPassengers = [];
+    const routePassengerItems = [];
     let totalCount = 0;
     selectedIds.forEach(uid => {
         const p = findPassengerByUid(uid);
         if (!p || p.status !== 'archived') return;
         totalCount++;
         if (p._sheet && p._rowNum) {
-            passengersToRestore.push({
-                sheet: p._sheet,
-                rowNum: p._rowNum
-            });
+            const item = { sheet: p._sheet, rowNum: p._rowNum };
+            if (p._isRouteData) {
+                routePassengerItems.push(item);
+            } else {
+                mainPassengers.push(item);
+            }
         }
     });
 
-    if (passengersToRestore.length === 0 && totalCount === 0) {
+    if (mainPassengers.length === 0 && routePassengerItems.length === 0 && totalCount === 0) {
         return showToast('⚠️ Немає заявок для відновлення');
     }
 
@@ -4506,7 +4515,7 @@ function bulkRestore() {
         });
     };
 
-    if (passengersToRestore.length === 0) {
+    if (mainPassengers.length === 0 && routePassengerItems.length === 0) {
         // Тільки локальні записи
         hideLoader();
         restoreLocally();
@@ -4518,50 +4527,61 @@ function bulkRestore() {
         return;
     }
 
-    // Викликаємо API з ретраєм
-    function doRestore(retries) {
-        fetch(API_URL, {
-            method: 'POST',
-            redirect: 'follow',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({
-                action: 'restorePassengers',
-                payload: { passengers: passengersToRestore }
+    // Одразу оновлюємо UI (не чекаємо на сервер)
+    restoreLocally();
+    clearSelection();
+    saveSettings();
+    render();
+    updateAllCounts();
+    hideLoader();
+    showToast(`↩️ Відновлено: ${totalCount}`);
+
+    // Відправляємо на сервер (fire-and-forget, як у bulkArchive)
+    if (mainPassengers.length > 0) {
+        function doRestoreMain(retries) {
+            fetch(API_URL, {
+                method: 'POST',
+                redirect: 'follow',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({
+                    action: 'restorePassengers',
+                    payload: { passengers: mainPassengers }
+                })
             })
-        })
-        .then(r => {
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            return r.text();
-        })
-        .then(t => {
-            try { var data = JSON.parse(t); if (data && typeof data === 'object') return data; throw new Error('Not JSON'); }
-            catch(e) { throw new Error('Invalid server response'); }
-        })
-        .then(data => {
-            hideLoader();
-            if (data.success) {
-                restoreLocally();
-                clearSelection();
-                saveSettings();
-                render();
-                updateAllCounts();
-                showToast(`↩️ Відновлено: ${data.restored || data.changed || totalCount}`);
-            } else {
-                showToast('❌ ' + (data.error || 'Помилка відновлення'));
-            }
-        })
-        .catch(err => {
-            if (retries > 0) {
-                console.warn('Restore retry (' + retries + ' left):', err.message);
-                setTimeout(() => doRestore(retries - 1), 1500);
-                return;
-            }
-            hideLoader();
-            console.error('Restore error:', err);
-            showToast('❌ Помилка відновлення: ' + (err.message || 'мережа'));
-        });
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(t => { try { JSON.parse(t); } catch(e) {} })
+            .catch(err => {
+                if (retries > 0) {
+                    console.warn('Restore main retry (' + retries + ' left):', err.message);
+                    setTimeout(() => doRestoreMain(retries - 1), 1500);
+                }
+            });
+        }
+        doRestoreMain(2);
     }
-    doRestore(2);
+    if (routePassengerItems.length > 0) {
+        function doRestoreRoute(retries) {
+            fetch(ROUTE_API_URL, {
+                method: 'POST',
+                redirect: 'follow',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({
+                    action: 'restorePassengers',
+                    companyId: getCompanyId(),
+                    passengers: routePassengerItems
+                })
+            })
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(t => { try { JSON.parse(t); } catch(e) {} })
+            .catch(err => {
+                if (retries > 0) {
+                    console.warn('Restore route retry (' + retries + ' left):', err.message);
+                    setTimeout(() => doRestoreRoute(retries - 1), 1500);
+                }
+            });
+        }
+        doRestoreRoute(2);
+    }
 }
 
 // Відмітити як сповіщених

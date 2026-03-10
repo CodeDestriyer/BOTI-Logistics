@@ -966,6 +966,12 @@ function changeStatus(payload, newStatus) {
         if (companyId) {
           sheet.getRange(rowNum, COL.COMPANY_ID + 1).setValue(companyId);
         }
+      } else {
+        // Відновлення: очищаємо всі архівні поля
+        sheet.getRange(rowNum, COL.DATE_ARCHIVE + 1).setValue('');
+        sheet.getRange(rowNum, COL.ARCHIVED_BY + 1).setValue('');
+        sheet.getRange(rowNum, COL.ARCHIVE_REASON + 1).setValue('');
+        sheet.getRange(rowNum, COL.ARCHIVE_ID + 1).setValue('');
       }
 
       if (note) {
