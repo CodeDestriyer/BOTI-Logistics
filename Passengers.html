@@ -6747,10 +6747,7 @@ function updatePassengerOnServer(passenger, retries) {
     const isRoute = !!passenger._isRouteData;
     const apiUrl = isRoute ? ROUTE_API_URL : API_URL;
 
-    const payload = {
-        action: 'updatePassenger',
-        companyId: getCompanyId(),
-        payload: {
+    const fields = {
             sheet: pSheet,
             rowNum: pRowNum,
             companyId: getCompanyId(),
@@ -6771,9 +6768,18 @@ function updatePassengerOnServer(passenger, retries) {
             dateReg: passenger.dateReg,
             note: passenger.note,
             // Зберігаємо конкретний тип архівації в колонку STATUS
-            status: (passenger.status === 'archived' && passenger.archiveType) ? passenger.archiveType : (passenger.status || ''),
-            statusDate: passenger.statusDate || ''
-        }
+            status: (passenger.status === 'archived' && passenger.archiveType) ? passenger.archiveType : (passenger.status || '')
+    };
+    // Додаємо архівні поля якщо статус = archived (як в карго)
+    if (passenger.status === 'archived') {
+        fields.dateArchive = passenger.statusDate || passenger.archiveDate || new Date().toISOString().split('T')[0];
+        fields.force = true; // Дозволяємо перезапис архівного статусу
+    }
+
+    const payload = {
+        action: 'updatePassenger',
+        companyId: getCompanyId(),
+        payload: fields
     };
 
     fetch(apiUrl, {

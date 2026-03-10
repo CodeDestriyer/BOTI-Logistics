@@ -750,37 +750,39 @@ function archivePassenger(payload) {
   var dateNow = Utilities.formatDate(new Date(), 'Europe/Kiev', 'yyyy-MM-dd HH:mm:ss');
   var archiveId = generateArchiveId_();
 
-  // === КРОК 1: Пишемо НАПРЯМУ в архівну таблицю ===
-  try {
-    var archiveSS = SpreadsheetApp.openById(ARCHIVE_SS_ID_LOG);
-    var archiveSheet = archiveSS.getSheetByName('Пасажири');
-    if (!archiveSheet) {
-      return { success: false, error: 'Архівний аркуш "Пасажири" не знайдено' };
-    }
-
-    // Будуємо рядок: 23 колонки (A-W)
-    // A-R (0-17): дані | S(18): дата | T(19): хто | U(20): причина | V(21): аркуш | W(22): ARCHIVE_ID
-    var archiveRow = [];
-    for (var i = 0; i < 18; i++) {
-      archiveRow.push(rowData[i] !== undefined ? rowData[i] : '');
-    }
-    archiveRow.push(dateNow);       // S - DATE_ARCHIVE
-    archiveRow.push(user);          // T - ARCHIVED_BY
-    archiveRow.push(reason);        // U - ARCHIVE_REASON
-    archiveRow.push(sheetName);     // V - SOURCE_SHEET
-    archiveRow.push(archiveId);     // W - ARCHIVE_ID
-
-    archiveSheet.appendRow(archiveRow);
-  } catch (err) {
-    return { success: false, error: 'Помилка запису в архів: ' + err.toString() };
-  }
-
-  // === КРОК 2: Оновлюємо джерело (тільки після успішного запису) ===
+  // === КРОК 1: Оновлюємо джерело СПОЧАТКУ (як в карго — in-place) ===
   // Зберігаємо конкретний тип архівації (refused/deleted/transferred/archived)
   var archiveStatus = (reason && ARCHIVE_STATUSES.indexOf(reason) !== -1) ? reason : 'archived';
   sheet.getRange(rowNum, COL.STATUS + 1).setValue(archiveStatus);
   sheet.getRange(rowNum, COL.DATE_ARCHIVE + 1).setValue(dateNow.substring(0, 10));
   sheet.getRange(rowNum, COL.ARCHIVE_ID + 1).setValue(archiveId);
+
+  // === КРОК 2: Пишемо в архівну таблицю (не блокуємо якщо впаде) ===
+  try {
+    var archiveSS = SpreadsheetApp.openById(ARCHIVE_SS_ID_LOG);
+    var archiveSheet = archiveSS.getSheetByName('Пасажири');
+    if (archiveSheet) {
+      // Будуємо рядок: 23 колонки (A-W)
+      // A-R (0-17): дані | S(18): дата | T(19): хто | U(20): причина | V(21): аркуш | W(22): ARCHIVE_ID
+      var archiveRow = [];
+      for (var i = 0; i < 18; i++) {
+        archiveRow.push(rowData[i] !== undefined ? rowData[i] : '');
+      }
+      archiveRow.push(dateNow);       // S - DATE_ARCHIVE
+      archiveRow.push(user);          // T - ARCHIVED_BY
+      archiveRow.push(reason);        // U - ARCHIVE_REASON
+      archiveRow.push(sheetName);     // V - SOURCE_SHEET
+      archiveRow.push(archiveId);     // W - ARCHIVE_ID
+
+      archiveSheet.appendRow(archiveRow);
+    } else {
+      writeLog('archivePassenger:WARN', sheetName, rowNum, 'archive_sheet_missing',
+        'Архівний аркуш "Пасажири" не знайдено, статус оновлено без копії');
+    }
+  } catch (err) {
+    // Логуємо помилку але НЕ зупиняємо — статус вже оновлено
+    writeLog('archivePassenger:WARN', sheetName, rowNum, 'archive_write_failed', err.toString());
+  }
 
   var recordId = String(rowData[COL.ID] || '');
   writeLog('archivePassenger', sheetName, rowNum, 'archived',
@@ -806,19 +808,6 @@ function bulkArchive(payload) {
 
   if (!items.length) {
     return { success: false, error: 'Немає items' };
-  }
-
-  // Відкриваємо архівну таблицю
-  var archiveSS;
-  var archiveSheet;
-  try {
-    archiveSS = SpreadsheetApp.openById(ARCHIVE_SS_ID_LOG);
-    archiveSheet = archiveSS.getSheetByName('Пасажири');
-    if (!archiveSheet) {
-      return { success: false, error: 'Архівний аркуш "Пасажири" не знайдено' };
-    }
-  } catch (err) {
-    return { success: false, error: 'Не вдалося відкрити архів: ' + err.toString() };
   }
 
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -859,19 +848,11 @@ function bulkArchive(payload) {
     successItems.push({ sheet: item.sheet, rowNum: rowNum, archiveId: archiveId, srcSheet: sheet });
   }
 
-  if (archiveRows.length === 0) {
+  if (successItems.length === 0) {
     return { success: true, count: 0, total: items.length, errors: errors.length > 0 ? errors : undefined };
   }
 
-  // === КРОК 1: Batch-запис в архів ===
-  try {
-    var startRow = archiveSheet.getLastRow() + 1;
-    archiveSheet.getRange(startRow, 1, archiveRows.length, 23).setValues(archiveRows);
-  } catch (err) {
-    return { success: false, error: 'Помилка batch-запису в архів: ' + err.toString() };
-  }
-
-  // === КРОК 2: Оновлюємо джерело ===
+  // === КРОК 1: Оновлюємо джерело СПОЧАТКУ (як в карго — in-place) ===
   for (var k = 0; k < successItems.length; k++) {
     var si = successItems[k];
     si.srcSheet.getRange(si.rowNum, COL.STATUS + 1).setValue('archived');
@@ -879,12 +860,28 @@ function bulkArchive(payload) {
     si.srcSheet.getRange(si.rowNum, COL.ARCHIVE_ID + 1).setValue(si.archiveId);
   }
 
+  // === КРОК 2: Batch-запис в архівну таблицю (не блокуємо якщо впаде) ===
+  try {
+    var archiveSS = SpreadsheetApp.openById(ARCHIVE_SS_ID_LOG);
+    var archiveSheet = archiveSS.getSheetByName('Пасажири');
+    if (archiveSheet && archiveRows.length > 0) {
+      var startRow = archiveSheet.getLastRow() + 1;
+      archiveSheet.getRange(startRow, 1, archiveRows.length, 23).setValues(archiveRows);
+    } else {
+      writeLog('bulkArchive:WARN', 'bulk', 0, 'archive_sheet_missing',
+        'Архівний аркуш не знайдено, статуси оновлено без копії');
+    }
+  } catch (err) {
+    // Логуємо помилку але НЕ зупиняємо — статуси вже оновлено
+    writeLog('bulkArchive:WARN', 'bulk', 0, 'archive_write_failed', err.toString());
+  }
+
   writeLog('bulkArchive', 'bulk', 0, 'archived',
-    archiveRows.length + '/' + items.length + ' записано в архів');
+    successItems.length + '/' + items.length + ' записано в архів');
 
   return {
     success: true,
-    count: archiveRows.length,
+    count: successItems.length,
     total: items.length,
     errors: errors.length > 0 ? errors : undefined
   };
