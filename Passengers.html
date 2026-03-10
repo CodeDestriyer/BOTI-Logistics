@@ -4401,29 +4401,26 @@ function moveOneToRoute(id) {
 function archivePassenger(id) {
     const p = passengers.find(x => x.id === id);
     if (!p) return;
+    const today = new Date().toISOString().split('T')[0];
     if (p.status !== 'archived') { p.prevStatus = p.status || 'new'; }
     p.archiveType = 'archived';
     p.status = 'archived';
-    p.statusDate = new Date().toISOString().split('T')[0];
-    render(); updateAllCounts(); renderCalendars();
-    showToast('📦 В архіві');
+    p.statusDate = today;
+    p.archivedBy = 'archived_' + getCompanyId();
 
-    // Відправляємо на сервер щоб silentSync не затер зміни
-    const sheet = p._sheet;
-    const rowNum = p._rowNum;
-    if (sheet && rowNum) {
-        fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({
-                action: 'bulkArchive',
-                payload: { passengers: [{ sheet, rowNum }], user: 'crm', reason: 'archived' }
-            })
-        })
-        .then(r => r.text())
-        .then(t => { try { return JSON.parse(t); } catch(e) { return { success: true }; } })
-        .catch(err => console.warn('archivePassenger API error:', err));
+    // Якщо є серверні дані — архівуємо на сервері з companyId
+    const pSheet = p._sheet || p.sheet;
+    const pRowNum = p._rowNum || p.rowNum;
+    if (pSheet && pRowNum) {
+        const isRoute = !!p._isRouteData;
+        const apiUrl = isRoute ? ROUTE_API_URL : API_URL;
+        const action = isRoute ? 'archivePassengers' : 'archivePassenger';
+        const body = isRoute
+            ? { action, companyId: getCompanyId(), passengers: [{ sheet: pSheet, rowNum: pRowNum }], user: 'crm', reason: 'archived' }
+            : { action, companyId: getCompanyId(), sheet: pSheet, rowNum: pRowNum, user: 'crm', reason: 'archived' };
+        fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body) }).catch(() => {});
     }
+    saveSettings(); render(); updateAllCounts(); renderCalendars(); showToast('📦 В архіві');
 }
 
 function restorePassenger(id) {
@@ -5006,9 +5003,9 @@ function executeCopyToRoute(byVehicle, withVehicle, conflictAction) {
 function bulkArchive() {
     if (selectedIds.size === 0) return showToast('⚠️ Оберіть заявки');
 
-    // Збираємо всіх знайдених пасажирів та розділяємо серверних на основні/маршрутні
+    // Збираємо всіх знайдених та розділяємо серверних на основні/маршрутні
     const mainPassengers = [];
-    const routePassengers = [];
+    const routePassengerItems = [];
     const allFoundPassengers = [];
     selectedIds.forEach(uid => {
         const p = findPassengerByUid(uid);
@@ -5019,7 +5016,7 @@ function bulkArchive() {
         if (sheet && rowNum) {
             const item = { sheet, rowNum };
             if (p._isRouteData) {
-                routePassengers.push(item);
+                routePassengerItems.push(item);
             } else {
                 mainPassengers.push(item);
             }
@@ -5030,7 +5027,8 @@ function bulkArchive() {
         return showToast('⚠️ Немає заявок для архівації');
     }
 
-    // Локальна функція архівації знайдених пасажирів
+    // Локальна функція архівації (як в карго — fire-and-forget)
+    const today = new Date().toISOString().split('T')[0];
     function archiveLocally() {
         allFoundPassengers.forEach(p => {
             if (p.status !== 'archived') {
@@ -5038,99 +5036,72 @@ function bulkArchive() {
             }
             p.archiveType = 'archived';
             p.status = 'archived';
-            p.statusDate = new Date().toISOString().split('T')[0];
+            p.statusDate = today;
+            p.archivedBy = 'archived_' + getCompanyId();
+
+            // Для маршрутних — оновлюємо головного пасажира
+            if (p._isRouteData) {
+                const mainP = passengers.find(mp => String(mp.id) === String(p.id));
+                if (mainP && mainP !== p) {
+                    if (mainP.status !== 'archived') mainP.prevStatus = mainP.status || 'new';
+                    mainP.status = 'archived';
+                    mainP.archiveType = 'archived';
+                    mainP.archiveDate = today;
+                    mainP.statusDate = today;
+                    mainP.archivedBy = 'archived_' + getCompanyId();
+                }
+            }
         });
-        clearSelection();
+
+        // Видаляємо маршрутних з routePassengers
+        const archivedUids = new Set(allFoundPassengers.filter(p => p._isRouteData).map(p => p._uid));
+        if (archivedUids.size > 0) {
+            routePassengers = routePassengers.filter(rp => !archivedUids.has(rp._uid));
+            routeStats.total = routePassengers.length;
+        }
+
+        refreshAfterAction();
         saveSettings();
-        render();
         updateAllCounts();
         renderCalendars();
     }
 
-    // Fetch з ретраєм для мобільних браузерів (GAS redirect може падати)
-    function fetchWithRetry(url, body, retries) {
-        retries = retries || 2;
-        return fetch(url, {
+    // Одразу оновлюємо UI (не чекаємо на сервер)
+    archiveLocally();
+    showToast(`📦 Архівовано: ${allFoundPassengers.length}`);
+
+    // Якщо є серверні дані — відправляємо на сервер (fire-and-forget, як в карго)
+    if (mainPassengers.length > 0) {
+        fetch(API_URL, {
             method: 'POST',
-            redirect: 'follow',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify(body)
-        }).then(function(r) {
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            return r.text();
-        }).then(function(t) {
-            try {
-                var data = JSON.parse(t);
-                if (data && typeof data === 'object') return data;
-                throw new Error('Not a JSON object');
-            } catch(e) {
-                console.error('Archive parse error, response:', t.substring(0, 500));
-                throw new Error('Invalid response from server');
-            }
-        }).catch(function(err) {
-            if (retries > 0) {
-                console.warn('Archive retry (' + retries + ' left):', err.message);
-                return new Promise(function(resolve) {
-                    setTimeout(resolve, 1500);
-                }).then(function() {
-                    return fetchWithRetry(url, body, retries - 1);
-                });
-            }
-            throw err;
-        });
+            body: JSON.stringify({
+                action: 'bulkArchive',
+                companyId: getCompanyId(),
+                items: mainPassengers,
+                user: 'crm',
+                reason: 'bulk_archive'
+            })
+        }).catch(() => {});
     }
+    if (routePassengerItems.length > 0) {
+        fetch(ROUTE_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+                action: 'archivePassengers',
+                companyId: getCompanyId(),
+                passengers: routePassengerItems
+            })
+        }).catch(() => {});
 
-    // Якщо є серверні дані — відправляємо на сервер
-    if (mainPassengers.length > 0 || routePassengers.length > 0) {
-        showLoader('Архівую...', '');
-
-        const requests = [];
-        if (mainPassengers.length > 0) {
-            requests.push(
-                fetchWithRetry(API_URL, {
-                    action: 'bulkArchive',
-                    payload: { passengers: mainPassengers, user: 'crm', reason: 'bulk_archive' }
-                })
-            );
-        }
-        if (routePassengers.length > 0) {
-            requests.push(
-                fetchWithRetry(ROUTE_API_URL, {
-                    action: 'archivePassengers',
-                    companyId: getCompanyId(),
-                    payload: { passengers: routePassengers, user: 'crm', reason: 'bulk_archive' }
-                })
-            );
-        }
-
-        Promise.all(requests)
-        .then(results => {
-            hideLoader();
-            // Перевіряємо чи сервер реально архівував
-            const failed = results.filter(r => r && r.success === false);
-            if (failed.length > 0) {
-                console.error('Archive server errors:', failed);
-                archiveLocally();
-                showToast('⚠️ Архівовано локально, сервер: ' + (failed[0].error || 'помилка'));
-                setTimeout(() => silentSync(), 3000);
-            } else {
-                archiveLocally();
-                const total = results.reduce((s, d) => s + (d.count || d.archived || 0), 0);
-                showToast(`📦 Архівовано: ${total || allFoundPassengers.length}`);
+        // Оновлюємо головних пасажирів на сервері
+        allFoundPassengers.forEach(p => {
+            if (p._isRouteData) {
+                const mainP = passengers.find(mp => String(mp.id) === String(p.id));
+                if (mainP) updatePassengerOnServer(mainP);
             }
-        })
-        .catch(err => {
-            hideLoader();
-            console.error('Archive fetch error:', err);
-            showToast('❌ Помилка архівації: ' + (err.message || 'мережа'));
-            // НЕ архівуємо локально — щоб юзер бачив що сервер не оновився
-            clearSelection();
-            setTimeout(() => silentSync(), 3000);
         });
-    } else {
-        // Немає серверних даних — архівуємо тільки локально
-        archiveLocally();
-        showToast(`📦 Архівовано: ${allFoundPassengers.length}`);
     }
 }
 
