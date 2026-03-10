@@ -4508,38 +4508,50 @@ function bulkRestore() {
         return;
     }
 
-    // Викликаємо API
-    fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-            action: 'restorePassengers',
-            payload: { passengers: passengersToRestore }
+    // Викликаємо API з ретраєм
+    function doRestore(retries) {
+        fetch(API_URL, {
+            method: 'POST',
+            redirect: 'follow',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+                action: 'restorePassengers',
+                payload: { passengers: passengersToRestore }
+            })
         })
-    })
-    .then(r => r.json())
-    .then(data => {
-        hideLoader();
-        if (data.success) {
-            restoreLocally();
-            clearSelection();
-            render();
-            updateAllCounts();
-            showToast(`↩️ Відновлено: ${data.restored || totalCount}`);
-        } else {
-            showToast('❌ ' + data.error);
-        }
-    })
-    .catch(err => {
-        hideLoader();
-        console.error('Restore error:', err);
-        restoreLocally();
-        clearSelection();
-        saveSettings();
-        render();
-        updateAllCounts();
-        showToast('↩️ Відновлено локально');
-    });
+        .then(r => {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.text();
+        })
+        .then(t => {
+            try { var data = JSON.parse(t); if (data && typeof data === 'object') return data; throw new Error('Not JSON'); }
+            catch(e) { throw new Error('Invalid server response'); }
+        })
+        .then(data => {
+            hideLoader();
+            if (data.success) {
+                restoreLocally();
+                clearSelection();
+                saveSettings();
+                render();
+                updateAllCounts();
+                showToast(`↩️ Відновлено: ${data.restored || data.changed || totalCount}`);
+            } else {
+                showToast('❌ ' + (data.error || 'Помилка відновлення'));
+            }
+        })
+        .catch(err => {
+            if (retries > 0) {
+                console.warn('Restore retry (' + retries + ' left):', err.message);
+                setTimeout(() => doRestore(retries - 1), 1500);
+                return;
+            }
+            hideLoader();
+            console.error('Restore error:', err);
+            showToast('❌ Помилка відновлення: ' + (err.message || 'мережа'));
+        });
+    }
+    doRestore(2);
 }
 
 // Відмітити як сповіщених
@@ -5035,6 +5047,39 @@ function bulkArchive() {
         renderCalendars();
     }
 
+    // Fetch з ретраєм для мобільних браузерів (GAS redirect може падати)
+    function fetchWithRetry(url, body, retries) {
+        retries = retries || 2;
+        return fetch(url, {
+            method: 'POST',
+            redirect: 'follow',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify(body)
+        }).then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.text();
+        }).then(function(t) {
+            try {
+                var data = JSON.parse(t);
+                if (data && typeof data === 'object') return data;
+                throw new Error('Not a JSON object');
+            } catch(e) {
+                console.error('Archive parse error, response:', t.substring(0, 500));
+                throw new Error('Invalid response from server');
+            }
+        }).catch(function(err) {
+            if (retries > 0) {
+                console.warn('Archive retry (' + retries + ' left):', err.message);
+                return new Promise(function(resolve) {
+                    setTimeout(resolve, 1500);
+                }).then(function() {
+                    return fetchWithRetry(url, body, retries - 1);
+                });
+            }
+            throw err;
+        });
+    }
+
     // Якщо є серверні дані — відправляємо на сервер
     if (mainPassengers.length > 0 || routePassengers.length > 0) {
         showLoader('Архівую...', '');
@@ -5042,43 +5087,45 @@ function bulkArchive() {
         const requests = [];
         if (mainPassengers.length > 0) {
             requests.push(
-                fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({
-                        action: 'bulkArchive',
-                        payload: { passengers: mainPassengers, user: 'crm', reason: 'bulk_archive' }
-                    })
-                }).then(r => r.text()).then(t => { try { return JSON.parse(t); } catch(e) { return { success: true }; } })
+                fetchWithRetry(API_URL, {
+                    action: 'bulkArchive',
+                    payload: { passengers: mainPassengers, user: 'crm', reason: 'bulk_archive' }
+                })
             );
         }
         if (routePassengers.length > 0) {
             requests.push(
-                fetch(ROUTE_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({
-                        action: 'archivePassengers',
-                        companyId: getCompanyId(),
-                        payload: { passengers: routePassengers, user: 'crm', reason: 'bulk_archive' }
-                    })
-                }).then(r => r.text()).then(t => { try { return JSON.parse(t); } catch(e) { return { success: true }; } })
+                fetchWithRetry(ROUTE_API_URL, {
+                    action: 'archivePassengers',
+                    companyId: getCompanyId(),
+                    payload: { passengers: routePassengers, user: 'crm', reason: 'bulk_archive' }
+                })
             );
         }
 
         Promise.all(requests)
         .then(results => {
             hideLoader();
-            archiveLocally();
-            const total = results.reduce((s, d) => s + (d.count || d.archived || allFoundPassengers.length), 0);
-            showToast(`📦 Архівовано: ${total || allFoundPassengers.length}`);
+            // Перевіряємо чи сервер реально архівував
+            const failed = results.filter(r => r && r.success === false);
+            if (failed.length > 0) {
+                console.error('Archive server errors:', failed);
+                archiveLocally();
+                showToast('⚠️ Архівовано локально, сервер: ' + (failed[0].error || 'помилка'));
+                setTimeout(() => silentSync(), 3000);
+            } else {
+                archiveLocally();
+                const total = results.reduce((s, d) => s + (d.count || d.archived || 0), 0);
+                showToast(`📦 Архівовано: ${total || allFoundPassengers.length}`);
+            }
         })
         .catch(err => {
             hideLoader();
-            console.warn('Archive fetch error:', err);
-            archiveLocally();
-            showToast(`📦 Архівовано: ${allFoundPassengers.length}`);
-            setTimeout(() => silentSync(), 2000);
+            console.error('Archive fetch error:', err);
+            showToast('❌ Помилка архівації: ' + (err.message || 'мережа'));
+            // НЕ архівуємо локально — щоб юзер бачив що сервер не оновився
+            clearSelection();
+            setTimeout(() => silentSync(), 3000);
         });
     } else {
         // Немає серверних даних — архівуємо тільки локально
@@ -6159,15 +6206,6 @@ function confirmDeletePassenger(uid) {
     const p = findPassengerByUid(uid);
     if (!p) return;
 
-    // Зберігаємо попередній статус для відновлення
-    if (p.status !== 'archived') {
-        p.prevStatus = p.status || 'new';
-    }
-    p.archiveType = 'deleted';
-    p.status = 'archived';
-    p.archiveDate = new Date().toISOString().split('T')[0];
-    p.isNew = false;
-
     // Закриваємо дії картки
     openActionsId = null;
 
@@ -6182,35 +6220,59 @@ function confirmDeletePassenger(uid) {
             ? { action: 'archivePassengers', companyId: getCompanyId(), payload: { passengers: [{ sheet: pSheet, rowNum: pRowNum }], user: 'crm', reason: 'deleted' } }
             : { action: 'archivePassenger', payload: { sheet: pSheet, rowNum: pRowNum, user: 'crm', reason: 'deleted' } };
 
-        fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify(body)
-        })
-        .then(r => r.json())
-        .then(data => {
-            hideLoader();
-            if (data.success) {
-                saveSettings();
-                render();
-                updateAllCounts();
-                renderCalendars();
-                showToast('🗑️ Переміщено в архів');
-            } else {
-                showToast('❌ ' + (data.error || 'Помилка'));
-            }
-        })
-        .catch(err => {
-            hideLoader();
-            console.error('Delete error:', err);
-            saveSettings();
-            render();
-            updateAllCounts();
-            renderCalendars();
-            showToast('🗑️ Видалено локально');
-        });
+        // Fetch з ретраєм для мобільних
+        function doDelete(retries) {
+            fetch(apiUrl, {
+                method: 'POST',
+                redirect: 'follow',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(body)
+            })
+            .then(r => {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.text();
+            })
+            .then(t => {
+                try { return JSON.parse(t); }
+                catch(e) { throw new Error('Invalid server response'); }
+            })
+            .then(data => {
+                hideLoader();
+                if (data.success) {
+                    // Оновлюємо локально тільки після підтвердження сервера
+                    if (p.status !== 'archived') p.prevStatus = p.status || 'new';
+                    p.archiveType = 'deleted';
+                    p.status = 'archived';
+                    p.archiveDate = new Date().toISOString().split('T')[0];
+                    p.isNew = false;
+                    saveSettings();
+                    render();
+                    updateAllCounts();
+                    renderCalendars();
+                    showToast('🗑️ Переміщено в архів');
+                } else {
+                    showToast('❌ ' + (data.error || 'Помилка архівації'));
+                }
+            })
+            .catch(err => {
+                if (retries > 0) {
+                    console.warn('Delete retry (' + retries + ' left):', err.message);
+                    setTimeout(() => doDelete(retries - 1), 1500);
+                    return;
+                }
+                hideLoader();
+                console.error('Delete error:', err);
+                showToast('❌ Помилка: ' + (err.message || 'мережа'));
+            });
+        }
+        doDelete(2);
     } else {
         // Локальний лід - просто оновлюємо
+        if (p.status !== 'archived') p.prevStatus = p.status || 'new';
+        p.archiveType = 'deleted';
+        p.status = 'archived';
+        p.archiveDate = new Date().toISOString().split('T')[0];
+        p.isNew = false;
         saveSettings();
         render();
         updateAllCounts();
@@ -6700,12 +6762,13 @@ function savePassengerToServer(passenger) {
 }
 
 // UPDATE - Оновити пасажира на сервері
-function updatePassengerOnServer(passenger) {
+function updatePassengerOnServer(passenger, retries) {
+    retries = retries !== undefined ? retries : 2;
     const pSheet = passenger._sheet || passenger.sheet;
     const pRowNum = passenger._rowNum || passenger.rowNum;
     if (!pSheet || !pRowNum) {
         console.warn('Немає _sheet або _rowNum, синхронізуємо:', passenger);
-        showToast('✅ Збережено');
+        showToast('✅ Збережено локально');
         setTimeout(() => silentSync(), 1500);
         return;
     }
@@ -6744,10 +6807,14 @@ function updatePassengerOnServer(passenger) {
 
     fetch(apiUrl, {
         method: 'POST',
+        redirect: 'follow',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify(payload)
     })
-    .then(r => r.text())
+    .then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+    })
     .then(text => {
         try {
             const data = JSON.parse(text);
@@ -6755,21 +6822,24 @@ function updatePassengerOnServer(passenger) {
                 showToast('✅ Збережено');
             } else {
                 console.warn('Update server error:', data.error);
-                // Дані оновлені локально — синхронізуємо
-                showToast('✅ Збережено');
+                showToast('⚠️ Сервер: ' + (data.error || 'помилка'));
                 setTimeout(() => silentSync(), 1500);
             }
         } catch(e) {
-            // GAS повернув не-JSON — дані збережені локально
-            console.warn('Update response not JSON, syncing...', text.substring(0, 100));
-            showToast('✅ Збережено');
-            setTimeout(() => silentSync(), 1500);
+            // GAS повернув не-JSON — ретраємо
+            console.warn('Update response not JSON:', text.substring(0, 200));
+            throw new Error('Invalid server response');
         }
     })
     .catch(err => {
-        console.warn('Update fetch error (data saved locally):', err);
-        showToast('✅ Збережено');
-        setTimeout(() => silentSync(), 2000);
+        if (retries > 0) {
+            console.warn('Update retry (' + retries + ' left):', err.message);
+            setTimeout(() => updatePassengerOnServer(passenger, retries - 1), 1500);
+            return;
+        }
+        console.error('Update fetch error:', err);
+        showToast('⚠️ Не вдалося зберегти на сервері');
+        setTimeout(() => silentSync(), 3000);
     });
 }
 
