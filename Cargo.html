@@ -584,6 +584,11 @@
         .lead-card.status-work { border-left-color: var(--info); }
         .lead-card.status-optimize { border-left-color: var(--purple); }
         .lead-card.status-route { border-left-color: var(--success); }
+        .lead-card.status-dispatch { border-left-color: #f97316; background: #fffbf5; }
+        .lead-card.status-dispatch:hover { box-shadow: 0 4px 16px rgba(249,115,22,0.15); }
+        .lead-card.status-dispatch .route-order-num { background: #f97316; color: white; }
+        .lead-card.status-dispatch .card-actions-toggle { color: #f97316; }
+        .lead-card.status-dispatch.selected { background: #fff7ed; }
         .lead-card.status-archived { border-left-color: #6b7280; opacity: 0.7; }
         .lead-card.status-refused { border-left-color: var(--danger); background: #fef2f2; }
         .lead-card.status-deleted { border-left-color: #9ca3af; background: #f3f4f6; opacity: 0.6; }
@@ -3623,6 +3628,10 @@ function findPackageByUid(uid) {
     if (uid.startsWith('route_')) {
         return routePassengers.find(p => p._uid === uid) || null;
     }
+    // Шукаємо в dispatchData якщо uid починається з 'disp_'
+    if (uid.startsWith('disp_')) {
+        return dispatchData.find(p => p._uid === uid) || null;
+    }
     if (uid.startsWith('local_')) {
         const idx = parseInt(uid.replace('local_', ''));
         const data = getFilteredData();
@@ -4583,7 +4592,7 @@ function renderRoutePassengers() {
 
 // Відмова посилки в маршруті
 function routeRefusePackage(uid) {
-    const p = routePassengers.find(rp => rp._uid === uid);
+    const p = routePassengers.find(rp => rp._uid === uid) || dispatchData.find(rp => rp._uid === uid);
     if (!p) return;
 
     document.getElementById('routeRefuseModal')?.remove();
@@ -4719,7 +4728,7 @@ function executeRouteStatusAction(uid, status, noteText) {
 
 // Збереження інлайн-полів для маршрутних карток
 function inlineRouteSave(uid, field, value) {
-    const p = routePassengers.find(x => x._uid === uid);
+    const p = routePassengers.find(x => x._uid === uid) || dispatchData.find(x => x._uid === uid);
     if (!p) return;
     p[field] = value;
 
@@ -4729,7 +4738,7 @@ function inlineRouteSave(uid, field, value) {
     if (ind) { ind.classList.add('show'); setTimeout(() => ind.classList.remove('show'), 1500); }
 
     // Зберігаємо на сервері (маршрутна таблиця)
-    const sheetName = p._routeSheet || currentRouteVehicle?.routeSheet || p.sheet;
+    const sheetName = p._dispatchSheet || p._routeSheet || currentRouteVehicle?.routeSheet || p.sheet;
     const rowNum = p.rowNum;
     if (sheetName && rowNum) {
         fetch(ROUTE_API_URL, {
@@ -4756,7 +4765,7 @@ function inlineRouteSave(uid, field, value) {
 
 // Збереження відмітки (driverStatus + parcelStatus) з inline-редагування маршруту
 function inlineRouteMarkSave(uid, newStatus) {
-    const p = routePassengers.find(x => x._uid === uid);
+    const p = routePassengers.find(x => x._uid === uid) || dispatchData.find(x => x._uid === uid);
     if (!p) return;
     p.driverStatus = newStatus;
     p.parcelStatus = newStatus;
@@ -4779,7 +4788,7 @@ function inlineRouteMarkSave(uid, newStatus) {
     }
 
     // Зберігаємо на сервері
-    const sheetName = p._routeSheet || currentRouteVehicle?.routeSheet || p.sheet;
+    const sheetName = p._dispatchSheet || p._routeSheet || currentRouteVehicle?.routeSheet || p.sheet;
     const rowNum = p.rowNum;
     if (sheetName && rowNum) {
         fetch(ROUTE_API_URL, {
@@ -4813,7 +4822,7 @@ function inlineRouteMarkSave(uid, newStatus) {
 
 // Видалення з маршруту — назавжди видаляє рядок
 function showRouteDeleteChoice(uid) {
-    const p = routePassengers.find(rp => rp._uid === uid);
+    const p = routePassengers.find(rp => rp._uid === uid) || dispatchData.find(rp => rp._uid === uid);
     if (!p) return;
     if (!confirm(`🗑️ Видалити назавжди?\n\n${p.name || 'Без імені'} (${p.phone || '—'})\n\nЗапис буде видалений з маршруту назавжди.`)) return;
     deleteFromRouteOnly(uid);
@@ -4822,15 +4831,22 @@ function showRouteDeleteChoice(uid) {
 // Видалити лише з маршруту (посилка залишається в головному списку)
 function deleteFromRouteOnly(uid) {
     document.getElementById('routeDeleteChoiceModal')?.remove();
-    const p = routePassengers.find(rp => rp._uid === uid);
+    const isDispatch = uid.startsWith('disp_');
+    const p = isDispatch
+        ? dispatchData.find(rp => rp._uid === uid)
+        : routePassengers.find(rp => rp._uid === uid);
     if (!p) return;
 
-    const sheetName = p._routeSheet || currentRouteVehicle?.routeSheet || p._vehicleName;
+    const sheetName = isDispatch ? (p._dispatchSheet || getDispatchSheetName(filters.routeVehicle)) : (p._routeSheet || currentRouteVehicle?.routeSheet || p._vehicleName);
     if (!sheetName) return showToast('Невідомий аркуш маршруту');
 
     // 1) Оновлюємо локальний стейт одразу (optimistic update)
-    routePassengers = routePassengers.filter(rp => rp._uid !== uid);
-    routeStats.total = routePassengers.length;
+    if (isDispatch) {
+        dispatchData = dispatchData.filter(rp => rp._uid !== uid);
+    } else {
+        routePassengers = routePassengers.filter(rp => rp._uid !== uid);
+        routeStats.total = routePassengers.length;
+    }
 
     const mainPkg = packages.find(mp => String(mp.id) === String(p.id));
     if (mainPkg) {
@@ -4964,87 +4980,146 @@ function renderDispatchView(container) {
         return;
     }
 
-    // Dispatch stats
-    let dsPending = 0, dsInProgress = 0, dsCompleted = 0, dsCancelled = 0;
-    dispatchData.forEach(item => {
-        const st = item.driverStatus || 'pending';
-        if (st === 'in-progress') dsInProgress++;
-        else if (st === 'completed') dsCompleted++;
-        else if (st === 'cancelled') dsCancelled++;
-        else dsPending++;
-    });
-
+    // Тільки загальна кількість (без статусів)
     html += `
         <div class="route-stats-box">
-            <div class="route-stats-grid">
-                <div class="route-stat-item active" style="background:#f97316;">
+            <div style="display:flex;justify-content:center;align-items:center;gap:12px;">
+                <div class="route-stat-item active" style="background:#f97316;flex:0 0 auto;padding:10px 24px;">
                     <div class="route-stat-num">${dispatchData.length}</div>
                     <div class="route-stat-label">Всього</div>
                 </div>
-                <div class="route-stat-item" style="color:#6c757d;">
-                    <div class="route-stat-num">${dsPending}</div>
-                    <div class="route-stat-label">⏳ Очікує</div>
-                </div>
-                <div class="route-stat-item" style="color:#007bff;">
-                    <div class="route-stat-num">${dsInProgress}</div>
-                    <div class="route-stat-label">🔄 В дорозі</div>
-                </div>
-                <div class="route-stat-item" style="color:#28a745;">
-                    <div class="route-stat-num">${dsCompleted}</div>
-                    <div class="route-stat-label">✅ Готово</div>
-                </div>
-                <div class="route-stat-item" style="color:#dc3545;">
-                    <div class="route-stat-num">${dsCancelled}</div>
-                    <div class="route-stat-label">❌ Відмова</div>
-                </div>
             </div>
             <div style="text-align:center;margin-top:10px;">
-                <button onclick="dispatchLastUpdate=0;renderRoutePassengers();" style="padding:8px 20px;border:none;border-radius:6px;background:var(--info);color:white;font-weight:600;cursor:pointer;font-size:12px;">🔄 Оновити</button>
+                <button onclick="dispatchLastUpdate=0;renderRoutePassengers();" style="padding:8px 20px;border:none;border-radius:6px;background:#f97316;color:white;font-weight:600;cursor:pointer;font-size:12px;">🔄 Оновити</button>
             </div>
         </div>
     `;
 
-    // Dispatch cards — та сама структура що й основний маршрут (Напрямок, ТТН, Вага, Адреса, Телефон, Сума, Оплата...)
-    const esc = (v) => (v || '').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    // Dispatch cards — повна структура як в основному маршруті
+    const hc = hiddenCols;
+    const hasSearch = filters.search && filters.search.trim();
+    const esc = (v) => (v || '').toString().replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     const cpBtn = (val) => `<button class="copy-btn-mini" onclick="event.stopPropagation();copyToClip('${esc(val)}',this)" title="Копіювати">📋</button>`;
+    const cc = (col, cls, content) => `<div class="cg-cell ${cls}" data-col="${col}" ${hc.has(col)?'style="display:none"':''}>${content}</div>`;
 
-    dispatchData.forEach((item, idx) => {
-        const status = item.driverStatus || 'pending';
-        const statusIcon = status === 'completed' ? '✅' : status === 'cancelled' ? '❌' : status === 'in-progress' ? '🔄' : '⏳';
-        const statusColor = status === 'completed' ? '#28a745' : status === 'cancelled' ? '#dc3545' : status === 'in-progress' ? '#007bff' : '#6c757d';
+    dispatchData.forEach((p, idx) => {
+        const uk = p._uid || ('disp_' + idx);
+        const sel = selectedIds.has(uk);
+        const dOpen = openDetailsId === uk;
+        const aOpen = openActionsId === uk;
+        const dispatchSheet = p._dispatchSheet || getDispatchSheetName(currentSheetName);
+        const isCodeDir = p.direction === 'ua-eu' || p.direction === 'eu-ua';
+        const dirLabel = isCodeDir ? (p.direction === 'ua-eu' ? 'UA→EU' : 'EU→UA') : (p.direction || '—');
+        const dirClass = p.direction === 'eu-ua' ? ' eu-ua' : '';
 
-        const isCodeDir = item.direction === 'ua-eu' || item.direction === 'eu-ua';
-        const dirLabel = isCodeDir ? (item.direction === 'ua-eu' ? 'UA→EU' : 'EU→UA') : (item.direction || '—');
-        const dirClass = item.direction === 'eu-ua' ? ' eu-ua' : '';
-        const payStatusClass = item.payStatus === 'Оплачено' ? 'paid' : (item.payStatus === 'Неоплачено' ? 'unpaid' : '');
-        const payStatusBadge = item.payStatus ? `<span class="card-pay-badge ${payStatusClass||'neutral'}">${esc(item.payStatus)}</span>` : '';
-        const paymentBadge = item.payment ? `<span class="card-pay-badge neutral">${esc(item.payment)}</span>` : '';
+        const phoneRaw = p.phone || '—';
+        const phoneDisplay = hasSearch ? highlightSearch(phoneRaw) : phoneRaw;
+        const weightDisplay = p.weight ? p.weight + ' кг' : '';
+        const ttnRaw = p.ttn || '';
+        const ttnDisplay = hasSearch ? highlightSearch(ttnRaw) : ttnRaw;
+        const idRaw = p.id || '—';
+        const idDisplay = hasSearch ? highlightSearch(idRaw) : idRaw;
+        const nameDisplay = hasSearch ? highlightSearch(p.name || '—') : (p.name || '—');
+        const numberDisplay = p.number || '';
+        const priceDisplay = p.amount ? '€' + p.amount : '';
+        const dateDisplay = p.dateReg || p.date || '—';
+        const dateRecvDisplay = p.dateReceive || '';
+        const addressShort = p.address ? (p.address.length > 45 ? p.address.substring(0, 45) + '...' : p.address) : '—';
+        const addressDisplay = hasSearch ? highlightSearch(addressShort) : addressShort;
+        const noteShort = p.note ? (p.note.length > 30 ? p.note.substring(0, 30) + '...' : p.note) : '';
 
-        html += `
-            <div class="lead-card" style="border-left: 4px solid ${statusColor}; margin-bottom: 8px;">
-                <div class="card-main" style="padding: 10px 12px;">
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-                        <span style="font-weight:700;font-size:13px;min-width:24px;text-align:center;color:var(--text-secondary);">${idx + 1}</span>
-                        <span style="font-size:14px;">${statusIcon}</span>
-                        <span class="cg-val-dir${dirClass}" style="font-weight:700;font-size:12px;">${dirLabel}</span>
-                        <span style="font-weight:700;font-size:13px;">${esc(item.name || 'Без імені')}</span>
-                        ${item.ttn ? `<span style="font-size:11px;color:var(--text-secondary);">ТТН:${esc(item.ttn)}${cpBtn(item.ttn)}</span>` : ''}
+        // Payment badges
+        const payStatusClass = p.payStatus === 'Оплачено' ? 'paid' : (p.payStatus === 'Неоплачено' ? 'unpaid' : '');
+        const payStatusBadge = p.payStatus ? `<span class="card-pay-badge ${payStatusClass||'neutral'}">${p.payStatus}</span>` : '';
+        const paymentBadge = p.payment ? `<span class="card-pay-badge neutral">${p.payment}</span>` : '';
+
+        // Vehicle badge
+        const vehicleBadge = `<span class="card-vehicle-badge" style="cursor:default;">${dispatchSheet}</span>`;
+
+        // Inline edit fields for details panel
+        const payStatuses = ['Оплачено','Неоплачено','Відправник','Отримувач'];
+        const payments = ['При отр гот','При отр на карту','Відпр на карту','Картка','Готівка'];
+        const selOpt = (field, val, options) => options.map(o => `<option value="${esc(o)}" ${val===o?'selected':''}>${o}</option>`).join('');
+        const mkInput = (label, field, val, ph, type) => `<div class="inline-edit-field"><span class="inline-edit-label">${label}</span><input class="inline-edit-input" type="${type||'text'}" value="${esc(val)}" placeholder="${ph||'—'}" onchange="inlineRouteSave('${uk}','${field}',this.value)" onclick="event.stopPropagation()"></div>`;
+        const mkSelect = (label, field, val, opts) => `<div class="inline-edit-field select-field"><span class="inline-edit-label">${label}</span><select class="inline-edit-select" onchange="inlineRouteSave('${uk}','${field}',this.value)" onclick="event.stopPropagation()"><option value="">—</option>${selOpt(field,val,opts)}</select></div>`;
+
+        let inlineHtml = `<div class="inline-edit-grid">`;
+        inlineHtml += `<div class="inline-section-title">Контакт</div>`;
+        inlineHtml += mkInput('Телефон','phone',p.phone,'+380...');
+        inlineHtml += mkInput('Тел. реєстратора','phoneReg',p.phoneReg,'+380...');
+        inlineHtml += mkInput('ТТН','ttn',p.ttn,'—');
+        inlineHtml += `<div class="inline-section-title">Деталі</div>`;
+        inlineHtml += mkInput("ПІБ",'name',p.name,'—');
+        inlineHtml += mkInput('Вага','weight',p.weight,'—');
+        inlineHtml += mkInput('Адреса','address',p.address,'—');
+        inlineHtml += mkInput('Сума','amount',p.amount,'—');
+        inlineHtml += mkSelect('Оплата','payment',p.payment,payments);
+        inlineHtml += mkInput('Таймінг','timing',p.timing,'—');
+        inlineHtml += mkInput('Примітка','note',p.note,'—');
+        inlineHtml += mkInput('SMS','smsNote',p.smsNote,'—');
+        inlineHtml += `</div>`;
+
+        html += `<div class="lead-card status-dispatch ${sel?'selected':''}" data-uid="${uk}" data-id="${p.id}">
+            <div class="card-main">
+                <div class="card-cb" style="flex-direction:column;gap:4px;">
+                    <input type="checkbox" class="card-checkbox" ${sel?'checked':''} onclick="event.stopPropagation();toggleSelect('${uk}')">
+                    <span class="route-order-num">${idx + 1}</span>
+                </div>
+                <div class="card-grid" onclick="toggleDetails('${uk}')">
+                    <!-- ROW 1: Direction + TTN | Weight | Date -->
+                    <div class="cg-row">
+                        ${cc('ttn','cg-main',`<span class="cg-val-dir${dirClass}">${dirLabel}</span>${ttnRaw ? `<span class="cg-val-ttn">ТТН:${ttnDisplay}${cpBtn(ttnRaw)}</span>` : ''}`)}
+                        ${cc('weight','cg-sm',`${weightDisplay ? `<span class="cg-val-weight">${weightDisplay}</span>` : '<span style="opacity:0.3">—</span>'}`)}
+                        ${cc('dateReg','cg-sm',`<span class="cg-val-date">${dateDisplay}</span>`)}
                     </div>
-                    <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:11px;margin-bottom:6px;">
-                        ${item.weight ? `<span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;">⚖ ${esc(item.weight)} кг</span>` : ''}
-                        ${item.address ? `<span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;">📍 ${esc(item.address.length > 40 ? item.address.substring(0, 40) + '...' : item.address)}</span>` : ''}
-                        ${item.amount ? `<span style="background:#dcfce7;padding:2px 8px;border-radius:4px;font-weight:700;color:#166534;">💰 €${esc(item.amount)}</span>` : ''}
-                        ${payStatusBadge}
-                        ${paymentBadge}
+                    <!-- ROW 2: Phone | АВТО | Amount | DateReceive -->
+                    <div class="cg-row">
+                        ${cc('phone','cg-main',`<span class="cg-val-phone" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">${phoneDisplay}${cpBtn(phoneRaw)}</span>`)}
+                        ${cc('vehicle','cg-sm',`${vehicleBadge}`)}
+                        ${cc('amount','cg-sm',`<span class="cg-val-price">${priceDisplay||'—'}</span>`)}
+                        ${cc('dateReceive','cg-sm',`<span class="cg-val-date">${dateRecvDisplay||'—'}</span>`)}
                     </div>
-                    <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:11px;">
-                        ${item.phone ? `<span style="font-weight:600;">📞 ${esc(item.phone)}${cpBtn(item.phone)}</span>` : ''}
-                        ${item.phoneReg ? `<span style="color:var(--text-secondary);">📱 Реєстратор: ${esc(item.phoneReg)}${cpBtn(item.phoneReg)}</span>` : ''}
+                    <!-- ROW 3: ID | PayStatus | Payment | Note -->
+                    <div class="cg-row">
+                        ${cc('id','cg-main',`<span class="cg-val-id" onclick="event.stopPropagation()">${idDisplay}${cpBtn(idRaw)}</span>`)}
+                        ${cc('payStatus','cg-sm',`${payStatusBadge||'<span style="opacity:0.3">—</span>'}`)}
+                        ${cc('payment','cg-sm',`${paymentBadge||'<span style="opacity:0.3">—</span>'}`)}
+                        ${cc('note','cg-sm',`${noteShort ? `<span class="cg-val-note">${noteShort}</span>` : '<span style="opacity:0.3">—</span>'}`)}
                     </div>
-                    ${item.note ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">📝 ${esc(item.note)}</div>` : ''}
+                    <!-- ROW 4: Address | Internal number -->
+                    <div class="cg-row">
+                        ${cc('address','cg-main',`<span class="cg-val-address" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">📍 ${addressDisplay}${cpBtn(p.address||'')}${(p.address||'').trim() ? `<a class="cg-map-link" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(p.address)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Навігація">➤</a>` : ''}</span>`)}
+                        ${cc('number','cg-sm',`<span class="cg-val">${numberDisplay||'—'}</span>`)}
+                    </div>
+                    <!-- ROW 5: Phone reg -->
+                    <div class="cg-row">
+                        ${cc('phoneReg','cg-main',`<span class="cg-val">${p.phoneReg||'—'}</span>${p.phoneReg?cpBtn(p.phoneReg):''}`)}
+                    </div>
+                    <!-- ROW 6: ПІБ | SMS Note | Timing -->
+                    <div class="cg-row">
+                        ${cc('name','cg-main',`<span class="cg-val-name">${nameDisplay}</span>${cpBtn(p.name||'')}`)}
+                        ${cc('smsNote','cg-sm',`<span class="cg-val">${p.smsNote ? (p.smsNote.length>25?p.smsNote.substring(0,25)+'...':p.smsNote) : '—'}</span>`)}
+                        ${cc('timing','cg-sm',`<span class="cg-val">${p.timing||'—'}</span>`)}
+                    </div>
+                </div>
+                <div class="card-right-panel" style="gap:6px;">
+                    <button class="card-actions-toggle ${aOpen?'open':''}" onclick="event.stopPropagation();toggleActions('${uk}')">▼</button>
                 </div>
             </div>
-        `;
+            <div class="card-details ${dOpen?'show':''}">
+                <button class="details-close-btn" onclick="event.stopPropagation();toggleDetails('${uk}')" title="Згорнути">✕</button>
+                ${inlineHtml}
+                <span class="inline-save-indicator" id="saveInd_${uk.replace(/[^a-zA-Z0-9]/g,'_')}">✓ Збережено</span>
+            </div>
+            <div class="card-actions ${aOpen?'show':''}">
+                <button class="btn-card-action btn-call" onclick="event.stopPropagation();location.href='tel:${p.phone}'">📞 Дзвонити</button>
+                <button class="btn-card-action btn-msg" onclick="openMessengerMenu('${p.phone}',event)">💬 Писати</button>
+                <button class="btn-card-action btn-map" onclick="event.stopPropagation();openMapModal('${uk}')">🗺️ Карта</button>
+                <button class="btn-card-action btn-edit" onclick="event.stopPropagation();editPackage('${uk}')">✏️ Редагувати</button>
+                <button class="btn-card-action" style="background:#fee2e2;color:#dc2626;" onclick="event.stopPropagation();routeRefusePackage('${uk}')">❌ Відмова</button>
+                <button class="btn-card-action btn-delete" onclick="event.stopPropagation();showRouteDeleteChoice('${uk}')">🗑️ Видалити</button>
+            </div>
+        </div>`;
     });
 
     container.innerHTML = html;
