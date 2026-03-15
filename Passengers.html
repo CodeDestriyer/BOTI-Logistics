@@ -1853,13 +1853,13 @@
             <span>Ще дії</span> <span class="toggle-arrow">▼</span>
         </button>
         <div class="bulk-sidebar-secondary" id="bulkSecondaryActions">
-            <button class="bulk-sidebar-btn" onclick="bulkArchive()">
+            <button class="bulk-sidebar-btn" id="btnSidebarArchive" onclick="bulkArchive()">
                 <span class="btn-icon">📦</span> Архівувати
             </button>
-            <button class="bulk-sidebar-btn" onclick="bulkRefuse()">
+            <button class="bulk-sidebar-btn" id="btnSidebarRefuse" onclick="bulkRefuse()">
                 <span class="btn-icon">❌</span> Відмова
             </button>
-            <button class="bulk-sidebar-btn" onclick="bulkDelete()">
+            <button class="bulk-sidebar-btn" id="btnSidebarDelete" onclick="bulkDelete()">
                 <span class="btn-icon">🗑️</span> Видалити
             </button>
         </div>
@@ -3465,16 +3465,37 @@ function updateBulkBar() {
     // Mobile кнопки
     const restoreBtn = document.getElementById('btnBulkRestore');
     const notifyBtn = document.getElementById('btnBulkNotify');
-    if (restoreBtn) restoreBtn.style.display = canRestore ? 'inline-flex' : 'none';
+    const archiveBtn = document.getElementById('btnBulkArchive');
+    if (restoreBtn) restoreBtn.style.display = (canRestore && !isRouteView) ? 'inline-flex' : 'none';
     if (notifyBtn) notifyBtn.style.display = isRouteView ? 'inline-flex' : 'none';
+    if (archiveBtn) archiveBtn.style.display = isRouteView ? 'none' : '';
     
     // PC Sidebar кнопки
     const sidebarNotify = document.getElementById('btnSidebarNotify');
     const sidebarRestore = document.getElementById('btnSidebarRestore');
     const sidebarDeleteForever = document.getElementById('btnSidebarDeleteForever');
+    const sidebarMoreToggle = document.getElementById('bulkMoreToggle');
+    const sidebarArchive = document.getElementById('btnSidebarArchive');
+    const sidebarRefuse = document.getElementById('btnSidebarRefuse');
+    const sidebarDelete = document.getElementById('btnSidebarDelete');
+    const sidebarSecondary = document.getElementById('bulkSecondaryActions');
     if (sidebarNotify) sidebarNotify.style.display = isRouteView ? 'flex' : 'none';
-    if (sidebarRestore) sidebarRestore.style.display = canRestore ? 'flex' : 'none';
+    if (sidebarRestore) sidebarRestore.style.display = (canRestore && !isRouteView) ? 'flex' : 'none';
     if (sidebarDeleteForever) sidebarDeleteForever.style.display = canDeleteForever ? 'flex' : 'none';
+    // В маршрутах: ховаємо "Ще дії", Архівувати, Відмова, Відновити; показуємо тільки Видалити
+    if (isRouteView) {
+        if (sidebarMoreToggle) sidebarMoreToggle.style.display = 'none';
+        if (sidebarArchive) sidebarArchive.style.display = 'none';
+        if (sidebarRefuse) sidebarRefuse.style.display = 'none';
+        if (sidebarDelete) sidebarDelete.style.display = 'flex';
+        if (sidebarSecondary) { sidebarSecondary.style.display = 'flex'; sidebarSecondary.classList.add('show'); }
+    } else {
+        if (sidebarMoreToggle) sidebarMoreToggle.style.display = '';
+        if (sidebarArchive) sidebarArchive.style.display = '';
+        if (sidebarRefuse) sidebarRefuse.style.display = '';
+        if (sidebarDelete) sidebarDelete.style.display = '';
+        if (sidebarSecondary) sidebarSecondary.style.display = '';
+    }
 }
 
 function handleSearch() { filters.search = document.getElementById('searchInput').value; render(); }
