@@ -782,6 +782,48 @@
             .route-stat-num { font-size: 20px; }
             .route-stat-label { font-size: 10px; }
 
+        /* Dispatch toggle section */
+        .dispatch-toggle-bar {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+        .dispatch-toggle-btn {
+            flex: 1;
+            padding: 10px 12px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            background: white;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+        .dispatch-toggle-btn:hover {
+            border-color: var(--primary);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        .dispatch-toggle-btn.active-regular {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        .dispatch-toggle-btn.active-dispatch {
+            background: linear-gradient(135deg, #f97316, #ea580c);
+            color: white;
+            border-color: #ea580c;
+        }
+        .dispatch-toggle-btn .toggle-count {
+            display: inline-block;
+            background: rgba(255,255,255,0.25);
+            padding: 1px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            margin-left: 6px;
+        }
+
             /* Super compact for small phones */
             .cg-row { min-height: 24px; }
             .cg-cell { padding: 2px 4px; font-size: 10px; }
@@ -2284,7 +2326,7 @@ const DEFAULT_VEHICLES = [
 let vehicles = DEFAULT_VEHICLES.map(v => ({...v}));
 
 // Службові аркуші які НЕ є маршрутами
-const EXCLUDED_SHEETS = ['логи', 'розсилка', 'лог', 'logs', 'mailing', 'провірка', 'провірка розсилки'];
+const EXCLUDED_SHEETS = ['логи', 'розсилка', 'лог', 'logs', 'mailing', 'провірка', 'провірка розсилки', 'відпр', 'водіїв', 'маршрути водіїв'];
 
 function isRouteSheet(name) {
     return !EXCLUDED_SHEETS.some(ex => name.toLowerCase().includes(ex));
@@ -3969,18 +4011,22 @@ function updateRoutesList() {
     });
 }
 
-// Рендер списку маршрутів — бере дані з серверних маршрутів, НЕ з vehicles
+// Рендер списку маршрутів — бере дані з серверних маршрутів + завжди показує дефолтні
 function renderRoutesListLocal() {
-    // Використовуємо серверні маршрути або fallback на vehicles.routeSheet
+    // Використовуємо серверні маршрути
     const routes = (window._serverRoutes || []).filter(r => isRouteSheet(r.name));
-    if (!routes.length) {
-        // fallback: беремо routeSheet з vehicles
-        vehicles.forEach(v => {
-            if (v.routeSheet && !routes.find(r => r.name === v.routeSheet)) {
-                routes.push({ name: v.routeSheet, count: 0 });
-            }
-        });
-    }
+    // Завжди додаємо дефолтні маршрути якщо їх немає в серверних
+    DEFAULT_VEHICLES.forEach(v => {
+        if (v.routeSheet && !routes.find(r => r.name === v.routeSheet)) {
+            routes.push({ name: v.routeSheet, count: 0 });
+        }
+    });
+    // Також додаємо з vehicles (можуть бути користувацькі)
+    vehicles.forEach(v => {
+        if (v.routeSheet && !routes.find(r => r.name === v.routeSheet)) {
+            routes.push({ name: v.routeSheet, count: 0 });
+        }
+    });
 
     const routesHtml = routes.map(r => {
         const count = r.count || 0;
@@ -4053,6 +4099,9 @@ function showAllRoutes() {
     filters.statusFilter = 'route';
     filters.routeVehicle = 'all';
     filters.showArchive = false;
+    isDispatchView = false;
+    dispatchData = [];
+    dispatchLastUpdate = 0;
     document.getElementById('routeDropdown')?.classList.remove('show');
     closeSideMenu();
 
@@ -4088,6 +4137,9 @@ function showRoute(sheetName) {
     filters.statusFilter = 'route';
     filters.routeVehicle = sheetName; // тепер зберігаємо sheetName замість vehicleId
     filters.showArchive = false;
+    isDispatchView = false;
+    dispatchData = [];
+    dispatchLastUpdate = 0;
     document.getElementById('routeDropdown')?.classList.remove('show');
     closeSideMenu();
 
@@ -4260,6 +4312,11 @@ let routeStats = { total: 0, pending: 0, inProgress: 0, completed: 0, cancelled:
 let currentRouteVehicle = null;
 let routeStatusFilter = 'all'; // Фільтр по статусу в маршруті
 
+// ═══ DISPATCH (ВІДПРАВКА) STATE ═══
+let dispatchData = [];
+let dispatchLastUpdate = 0;
+let isDispatchView = false; // true = показуємо відправки, false = звичайні посилки
+
 // Рендер пасажирів маршруту в основному списку
 // Маппінг англійських статусів відміток на українські
 function routeMarkLabel(status) {
@@ -4270,33 +4327,55 @@ function routeMarkLabel(status) {
 function renderRoutePassengers() {
     const container = document.getElementById('cardsList');
     if (!container) return;
-    
+
     // Скролимо до верху
     container.scrollTop = 0;
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    
+
     updateBulkBar();
-    
+
+    // Якщо dispatch view — рендеримо відправки
+    if (isDispatchView) {
+        renderDispatchView(container);
+        return;
+    }
+
     if (routePassengers.length === 0) {
         container.innerHTML = `
             <div style="text-align:center;padding:40px;color:var(--text-secondary);">
                 <div style="font-size:48px;margin-bottom:12px;">📭</div>
                 <div style="font-size:14px;font-weight:600;">Маршрут порожній</div>
-                <div style="font-size:12px;margin-top:8px;">Додайте пасажирів через кнопку "🚀 Маршрут"</div>
+                <div style="font-size:12px;margin-top:8px;">Додайте посилки через кнопку "🚀 Маршрут"</div>
             </div>
         `;
         return;
     }
-    
+
     // Фільтруємо по статусу
     let filteredPassengers = routePassengers;
     if (routeStatusFilter !== 'all') {
         filteredPassengers = routePassengers.filter(p => p.driverStatus === routeStatusFilter);
     }
-    
-    
+
+
     let html = '';
-    
+
+    // Перемикач Усього / Відправка зверху
+    const currentSheetName = filters.routeVehicle || '';
+    const showDispatchToggle = currentSheetName && currentSheetName !== 'all';
+    if (showDispatchToggle) {
+        html += `
+            <div class="dispatch-toggle-bar">
+                <button class="dispatch-toggle-btn active-regular" onclick="switchToRegularView()">
+                    📋 Усього <span class="toggle-count">${routeStats.total}</span>
+                </button>
+                <button class="dispatch-toggle-btn" onclick="switchToDispatchView()">
+                    📦 Відправка <span class="toggle-count" id="dispatchToggleCount">${dispatchData.length || '...'}</span>
+                </button>
+            </div>
+        `;
+    }
+
     // Статистика зверху - клікабельна, адаптивна
     html += `
         <div class="route-stats-box">
@@ -4770,7 +4849,170 @@ function deleteFromRouteOnly(uid) {
 // Фільтр по статусу в маршруті
 function filterRouteByStatus(status) {
     routeStatusFilter = status;
+    isDispatchView = false;
     renderRoutePassengers();
+}
+
+// ═══════════════════════════════════════════════
+// DISPATCH (ВІДПРАВКА) — логіка для карго маршрутів
+// ═══════════════════════════════════════════════
+
+function getDispatchSheetName(routeSheet) {
+    const sheet = routeSheet || filters.routeVehicle || '';
+    return sheet + ' (відпр)';
+}
+
+function switchToDispatchView() {
+    isDispatchView = true;
+    dispatchLastUpdate = 0; // Force reload
+    renderRoutePassengers(); // Will call renderDispatchView
+}
+
+function switchToRegularView() {
+    isDispatchView = false;
+    renderRoutePassengers();
+}
+
+async function loadDispatchForRoute(routeSheet) {
+    const sheetName = getDispatchSheetName(routeSheet);
+    try {
+        const response = await fetch(ROUTE_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+                action: 'getDispatchItems',
+                companyId: getCompanyId(),
+                payload: { sheetName: sheetName }
+            })
+        });
+        const data = await response.json();
+        if (data.success) {
+            const items = data.items || [];
+            dispatchData = items;
+            dispatchData.forEach((item, idx) => {
+                item._statusKey = 'disp_' + (item.rowNum || idx) + '_' + idx;
+            });
+            dispatchLastUpdate = Date.now();
+            return items;
+        }
+        return [];
+    } catch (err) {
+        console.error('Dispatch load error:', err);
+        return [];
+    }
+}
+
+function renderDispatchView(container) {
+    let html = '';
+
+    // Перемикач зверху
+    const currentSheetName = filters.routeVehicle || '';
+    html += `
+        <div class="dispatch-toggle-bar">
+            <button class="dispatch-toggle-btn" onclick="switchToRegularView()">
+                📋 Усього <span class="toggle-count">${routeStats.total}</span>
+            </button>
+            <button class="dispatch-toggle-btn active-dispatch" onclick="switchToDispatchView()">
+                📦 Відправка <span class="toggle-count">${dispatchData.length}</span>
+            </button>
+        </div>
+    `;
+
+    // Показуємо loader якщо ще не завантажено
+    if (dispatchLastUpdate === 0 || (Date.now() - dispatchLastUpdate) > 60000) {
+        html += `<div style="text-align:center;padding:30px;color:var(--text-secondary);">
+            <div style="font-size:24px;margin-bottom:8px;">⏳</div>
+            <div>Завантаження відправок...</div>
+        </div>`;
+        container.innerHTML = html;
+        // Завантажуємо дані
+        loadDispatchForRoute(currentSheetName).then(() => {
+            renderDispatchView(container);
+        });
+        return;
+    }
+
+    if (dispatchData.length === 0) {
+        html += `<div style="text-align:center;padding:40px;color:var(--text-secondary);">
+            <div style="font-size:48px;margin-bottom:12px;">📦</div>
+            <div style="font-size:14px;font-weight:600;">Відправок не знайдено</div>
+            <div style="font-size:12px;margin-top:8px;">Аркуш "${getDispatchSheetName(currentSheetName)}" порожній</div>
+        </div>`;
+        container.innerHTML = html;
+        return;
+    }
+
+    // Dispatch stats
+    let dsPending = 0, dsInProgress = 0, dsCompleted = 0, dsCancelled = 0;
+    dispatchData.forEach(item => {
+        const st = item.driverStatus || 'pending';
+        if (st === 'in-progress') dsInProgress++;
+        else if (st === 'completed') dsCompleted++;
+        else if (st === 'cancelled') dsCancelled++;
+        else dsPending++;
+    });
+
+    html += `
+        <div class="route-stats-box">
+            <div class="route-stats-grid">
+                <div class="route-stat-item active" style="background:#f97316;">
+                    <div class="route-stat-num">${dispatchData.length}</div>
+                    <div class="route-stat-label">Всього</div>
+                </div>
+                <div class="route-stat-item" style="color:#6c757d;">
+                    <div class="route-stat-num">${dsPending}</div>
+                    <div class="route-stat-label">⏳ Очікує</div>
+                </div>
+                <div class="route-stat-item" style="color:#007bff;">
+                    <div class="route-stat-num">${dsInProgress}</div>
+                    <div class="route-stat-label">🔄 В дорозі</div>
+                </div>
+                <div class="route-stat-item" style="color:#28a745;">
+                    <div class="route-stat-num">${dsCompleted}</div>
+                    <div class="route-stat-label">✅ Готово</div>
+                </div>
+                <div class="route-stat-item" style="color:#dc3545;">
+                    <div class="route-stat-num">${dsCancelled}</div>
+                    <div class="route-stat-label">❌ Відмова</div>
+                </div>
+            </div>
+            <div style="text-align:center;margin-top:10px;">
+                <button onclick="dispatchLastUpdate=0;renderRoutePassengers();" style="padding:8px 20px;border:none;border-radius:6px;background:var(--info);color:white;font-weight:600;cursor:pointer;font-size:12px;">🔄 Оновити</button>
+            </div>
+        </div>
+    `;
+
+    // Dispatch cards
+    const esc = (v) => (v || '').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+    dispatchData.forEach((item, idx) => {
+        const status = item.driverStatus || 'pending';
+        const statusIcon = status === 'completed' ? '✅' : status === 'cancelled' ? '❌' : status === 'in-progress' ? '🔄' : '⏳';
+        const statusColor = status === 'completed' ? '#28a745' : status === 'cancelled' ? '#dc3545' : status === 'in-progress' ? '#007bff' : '#6c757d';
+
+        html += `
+            <div class="lead-card" style="border-left: 4px solid ${statusColor}; margin-bottom: 8px;">
+                <div class="card-main" style="padding: 10px 12px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                        <span style="font-size:14px;">${statusIcon}</span>
+                        <span style="font-weight:700;font-size:13px;">${esc(item.name || 'Без імені')}</span>
+                        ${item.parcelNum ? `<span style="font-size:11px;color:var(--text-secondary);">📦 №${esc(item.parcelNum)}</span>` : ''}
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:11px;margin-bottom:6px;">
+                        ${item.city ? `<span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;">📍 ${esc(item.city)}</span>` : ''}
+                        ${item.weight ? `<span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;">⚖ ${esc(item.weight)} кг</span>` : ''}
+                        ${item.amount ? `<span style="background:#dcfce7;padding:2px 8px;border-radius:4px;font-weight:700;color:#166534;">💰 ${esc(item.amount)} ${esc(item.currency || '')}</span>` : ''}
+                        ${item.paymentType ? `<span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;">💳 ${esc(item.paymentType)}</span>` : ''}
+                    </div>
+                    ${item.senderPhone ? `<div style="font-size:12px;font-weight:600;margin-bottom:6px;">📞 ${esc(item.senderPhone)}</div>` : ''}
+                    ${item.description ? `<div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;">📝 ${esc(item.description)}</div>` : ''}
+                    ${item.envelope ? `<div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;">💼 Конверт: ${esc(item.envelope)}</div>` : ''}
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
 }
 
 // Розгортання деталей картки маршруту - використовує основний toggleDetails()

@@ -3665,18 +3665,22 @@ function updateRoutesList() {
     });
 }
 
-// Рендер списку маршрутів — бере дані з серверних маршрутів, НЕ з vehicles
+// Рендер списку маршрутів — бере дані з серверних маршрутів + завжди показує дефолтні
 function renderRoutesListLocal() {
-    // Використовуємо серверні маршрути або fallback на vehicles.routeSheet
+    // Використовуємо серверні маршрути
     const routes = (window._serverRoutes || []).filter(r => isRouteSheet(r.name));
-    if (!routes.length) {
-        // fallback: беремо routeSheet з vehicles
-        vehicles.forEach(v => {
-            if (v.routeSheet && !routes.find(r => r.name === v.routeSheet)) {
-                routes.push({ name: v.routeSheet, count: 0 });
-            }
-        });
-    }
+    // Завжди додаємо дефолтні маршрути якщо їх немає в серверних
+    DEFAULT_VEHICLES.forEach(v => {
+        if (v.routeSheet && !routes.find(r => r.name === v.routeSheet)) {
+            routes.push({ name: v.routeSheet, count: 0 });
+        }
+    });
+    // Також додаємо з vehicles (можуть бути користувацькі)
+    vehicles.forEach(v => {
+        if (v.routeSheet && !routes.find(r => r.name === v.routeSheet)) {
+            routes.push({ name: v.routeSheet, count: 0 });
+        }
+    });
 
     const routesHtml = routes.map(r => {
         const count = r.count || 0;
