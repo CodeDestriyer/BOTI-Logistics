@@ -1864,27 +1864,27 @@
             </button>
         </div>
 
-        <!-- Закриття -->
-        <div class="bulk-group-header collapsed" onclick="toggleBulkGroup('close')">
-            <span>Закриття</span><span class="bulk-group-toggle" id="bulkToggleClose">▼</span>
-        </div>
-        <div class="bulk-group-items collapsed" id="bulkGroupClose">
-            <button class="bulk-sidebar-btn" onclick="bulkRefuse()">
+        <div class="bulk-sidebar-divider"></div>
+        <button class="bulk-sidebar-more-toggle" id="bulkMoreToggle" onclick="toggleBulkSecondary()">
+            <span>Ще дії</span> <span class="toggle-arrow">▼</span>
+        </button>
+        <div class="bulk-sidebar-secondary" id="bulkSecondaryActions">
+            <button class="bulk-sidebar-btn" id="btnSidebarArchive" onclick="bulkArchive()">
+                <span class="btn-icon">📦</span> Архівувати
+            </button>
+            <button class="bulk-sidebar-btn" id="btnSidebarRefuse" onclick="bulkRefuse()">
                 <span class="btn-icon">❌</span> Відмова
             </button>
-            <button class="bulk-sidebar-btn" onclick="bulkDelete()">
+            <button class="bulk-sidebar-btn" id="btnSidebarDelete" onclick="bulkDelete()">
                 <span class="btn-icon">🗑️</span> Видалити
             </button>
-            <button class="bulk-sidebar-btn" id="btnSidebarArchive" onclick="bulkArchive()">
-                <span class="btn-icon">📦</span> В архів
-            </button>
-            <button class="bulk-sidebar-btn" id="btnSidebarRestore" onclick="bulkRestore()" style="display:none;">
-                <span class="btn-icon">↩️</span> Відновити
-            </button>
-            <button class="bulk-sidebar-btn" id="btnSidebarDeleteForever" onclick="bulkDeleteForever()" style="display:none;">
-                <span class="btn-icon">💀</span> Видалити назавжди
-            </button>
         </div>
+        <button class="bulk-sidebar-btn" id="btnSidebarRestore" onclick="bulkRestore()" style="display:none;">
+            <span class="btn-icon">↩️</span> Відновити
+        </button>
+        <button class="bulk-sidebar-btn" id="btnSidebarDeleteForever" onclick="bulkDeleteForever()" style="display:none;">
+            <span class="btn-icon">💀</span> Видалити назавжди
+        </button>
         <button class="bulk-sidebar-more-toggle bulk-route-marks-toggle" id="bulkMarksToggle" onclick="toggleBulkMarks()" style="display:none;">
             <span>🏷️ Відмітки</span> <span class="toggle-arrow">▼</span>
         </button>
@@ -6542,6 +6542,18 @@ function headerEdit(uid, field, btn) {
 }
 
 // === BULK GROUP TOGGLE ===
+function toggleBulkSecondary() {
+    const sec = document.getElementById('bulkSecondaryActions');
+    const tog = document.getElementById('bulkMoreToggle');
+    if (sec.classList.contains('expanded')) {
+        sec.classList.remove('expanded');
+        tog.classList.remove('expanded');
+    } else {
+        sec.classList.add('expanded');
+        tog.classList.add('expanded');
+    }
+}
+
 function toggleBulkGroup(group) {
     const header = document.querySelector(`[onclick="toggleBulkGroup('${group}')"]`);
     const items = document.getElementById('bulkGroup' + group.charAt(0).toUpperCase() + group.slice(1));
