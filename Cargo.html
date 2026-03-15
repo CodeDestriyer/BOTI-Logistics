@@ -4570,42 +4570,12 @@ function inlineRouteSave(uid, field, value) {
     }
 }
 
-// Видалення з маршруту — вибір дії
+// Видалення з маршруту — назавжди видаляє рядок
 function showRouteDeleteChoice(uid) {
     const p = routePassengers.find(rp => rp._uid === uid);
     if (!p) return;
-
-    document.getElementById('routeDeleteChoiceModal')?.remove();
-
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay show';
-    modal.id = 'routeDeleteChoiceModal';
-    modal.innerHTML = `
-        <div class="modal" style="max-width:380px;">
-            <div class="modal-header" style="background:#fee2e2;border-bottom:1px solid #fecaca;">
-                <span class="modal-title" style="color:#dc2626;">🗑️ Видалити</span>
-                <button class="modal-close" onclick="document.getElementById('routeDeleteChoiceModal').remove()">✕</button>
-            </div>
-            <div class="modal-body" style="padding:20px;">
-                <div style="text-align:center;margin-bottom:16px;">
-                    <div style="font-size:14px;font-weight:600;">${p.name || 'Без імені'}</div>
-                    <div style="font-size:12px;color:var(--text-secondary);">${p.phone || '—'}</div>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:10px;">
-                    <button onclick="deleteFromRouteOnly('${uid}')" style="padding:14px;border:none;border-radius:10px;background:#f59e0b;color:white;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">
-                        📋 Видалити з маршруту<br>
-                        <span style="font-size:11px;font-weight:400;opacity:0.9;">Посилка залишиться в головному списку</span>
-                    </button>
-                    <button onclick="deleteFromRouteAndTrash('${uid}')" style="padding:14px;border:none;border-radius:10px;background:#dc2626;color:white;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;">
-                        🗑️ Видалити в корзину<br>
-                        <span style="font-size:11px;font-weight:400;opacity:0.9;">Посилка буде архівована</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-    modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
-    document.body.appendChild(modal);
+    if (!confirm(`🗑️ Видалити назавжди?\n\n${p.name || 'Без імені'} (${p.phone || '—'})\n\nЗапис буде видалений з маршруту назавжди.`)) return;
+    deleteFromRouteOnly(uid);
 }
 
 // Видалити лише з маршруту (посилка залишається в головному списку)
@@ -4653,11 +4623,6 @@ function deleteFromRouteOnly(uid) {
     });
 }
 
-// Видалити з маршруту + в корзину (архів)
-function deleteFromRouteAndTrash(uid) {
-    document.getElementById('routeDeleteChoiceModal')?.remove();
-    executeRouteStatusAction(uid, 'deleted', '');
-}
 
 // Фільтр по статусу в маршруті
 function filterRouteByStatus(status) {
@@ -5120,7 +5085,6 @@ function showRouteConflictModal(existing, byVehicle, withVehicle) {
             <div class="modal-footer" style="flex-wrap:wrap;gap:6px;">
                 <button class="btn-cancel" onclick="closeModal('routeConflictModal')" style="flex:1 1 45%;">❌ Скасувати</button>
                 <button class="btn-save" onclick="handleRouteConflict('add')" style="flex:1 1 45%;background:var(--info);">➕ Додати</button>
-                <button class="btn-save" onclick="handleRouteConflict('archive')" style="flex:1 1 45%;background:var(--warning);">📦 Архівувати</button>
                 <button class="btn-save" onclick="handleRouteConflict('clear')" style="flex:1 1 45%;background:var(--danger);">🗑️ Очистити</button>
             </div>
         </div>

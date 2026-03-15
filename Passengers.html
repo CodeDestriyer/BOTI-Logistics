@@ -4157,41 +4157,12 @@ function openRouteMap(fromEncoded, toEncoded) {
     }
 }
 
-// Вибір типу видалення в маршруті
+// Видалення з маршруту — назавжди видаляє рядок
 function showRouteDeleteChoice(uid) {
     const p = routePassengers.find(rp => rp._uid === uid);
     if (!p) return;
-
-    document.getElementById('routeDeleteChoiceModal')?.remove();
-
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay show';
-    modal.id = 'routeDeleteChoiceModal';
-    modal.innerHTML = `
-        <div class="modal" style="max-width:380px;">
-            <div class="modal-header" style="background:#fee2e2;border-bottom:1px solid #fecaca;">
-                <span class="modal-title" style="color:#dc2626;">🗑️ Видалити</span>
-                <button class="modal-close" onclick="document.getElementById('routeDeleteChoiceModal').remove()">✕</button>
-            </div>
-            <div class="modal-body" style="padding:20px;">
-                <div style="text-align:center;margin-bottom:16px;">
-                    <div style="font-size:14px;font-weight:600;">${p.name || 'Без імені'}</div>
-                    <div style="font-size:12px;color:var(--text-secondary);">${p.phone || '—'}</div>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:10px;">
-                    <button onclick="deleteFromRouteOnly('${uid}')" style="padding:14px;border:none;border-radius:10px;background:#f59e0b;color:white;font-weight:600;font-size:13px;cursor:pointer;">
-                        📋 Видалити з маршруту<br>
-                        <span style="font-size:11px;font-weight:400;opacity:0.9;">Лід залишиться в головному списку</span>
-                    </button>
-                    <button onclick="deleteFromRouteAndTrash('${uid}')" style="padding:14px;border:none;border-radius:10px;background:#dc2626;color:white;font-weight:600;font-size:13px;cursor:pointer;">
-                        🗑️ Видалити в корзину<br>
-                        <span style="font-size:11px;font-weight:400;opacity:0.9;">Лід буде архівовано</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
+    if (!confirm(`🗑️ Видалити назавжди?\n\n${p.name || 'Без імені'} (${p.phone || '—'})\n\nЗапис буде видалений з маршруту назавжди.`)) return;
+    deleteFromRouteOnly(uid);
 }
 
 // Видалити тільки з маршруту (лід залишається в основному списку)
@@ -4237,64 +4208,6 @@ function deleteFromRouteOnly(uid) {
     });
 }
 
-// Видалити з маршруту + в архів (корзину)
-function deleteFromRouteAndTrash(uid) {
-    document.getElementById('routeDeleteChoiceModal')?.remove();
-    const p = routePassengers.find(rp => rp._uid === uid);
-    if (!p) return;
-
-    const sheetName = currentRouteVehicle?.routeSheet || p._vehicleName;
-    if (!sheetName) return showToast('❌ Невідомий аркуш маршруту');
-
-    showRouteProgress('Видаляю...');
-
-    // 1) Видаляємо з маршруту
-    fetch(ROUTE_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-            action: 'deleteRoutePassenger',
-            companyId: getCompanyId(),
-            payload: { sheetName: sheetName, rowNum: p.rowNum || p._rowNum }
-        })
-    })
-    .then(r => r.text())
-    .then(text => {
-        // 2) Архівуємо в головному списку
-        const mainPassenger = passengers.find(mp => String(mp.id) === String(p.id));
-        if (mainPassenger) {
-            mainPassenger.status = 'archived';
-            mainPassenger.archiveDate = new Date().toISOString().split('T')[0];
-            updatePassengerOnServer(mainPassenger);
-            saveSettings();
-        }
-
-        hideRouteProgress();
-        routePassengers = routePassengers.filter(rp => rp._uid !== uid);
-        routeStats.total = routePassengers.length;
-        renderRoutePassengers();
-        updateAllCounts();
-        updateRoutesList();
-        showToast('🗑️ Видалено в корзину');
-        try { const data = JSON.parse(text); if (!data.success) console.warn('Delete route+trash error:', data.error); } catch(e) {}
-    })
-    .catch(err => {
-        hideRouteProgress();
-        console.warn('deleteFromRouteAndTrash fetch error:', err);
-        const mainPassenger = passengers.find(mp => String(mp.id) === String(p.id));
-        if (mainPassenger) {
-            mainPassenger.status = 'archived';
-            mainPassenger.archiveDate = new Date().toISOString().split('T')[0];
-            saveSettings();
-        }
-        routePassengers = routePassengers.filter(rp => rp._uid !== uid);
-        routeStats.total = routePassengers.length;
-        renderRoutePassengers();
-        updateAllCounts();
-        showToast('🗑️ Видалено в корзину');
-        setTimeout(() => silentSync(), 2000);
-    });
-}
 
 // Оновити кількість в маршрутах (викликається при відкритті dropdown)
 function updateRoutesCounts() {
@@ -4825,10 +4738,6 @@ function showRouteConflictModal(existing, byVehicle, withVehicle) {
                 <button class="route-conflict-btn add" onclick="handleRouteConflict('add')">
                     <span class="btn-emoji">➕</span>
                     <span class="btn-label">Додати</span>
-                </button>
-                <button class="route-conflict-btn archive" onclick="handleRouteConflict('archive')">
-                    <span class="btn-emoji">📦</span>
-                    <span class="btn-label">Архівувати старі</span>
                 </button>
                 <button class="route-conflict-btn clear" onclick="handleRouteConflict('clear')">
                     <span class="btn-emoji">🗑️</span>
