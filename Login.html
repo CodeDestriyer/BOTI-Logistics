@@ -325,12 +325,12 @@
     }
     .user-role-badge.role-owner { background: rgba(16, 185, 129, 0.15); color: var(--owner); }
     .user-role-badge.role-manager { background: rgba(59, 130, 246, 0.15); color: var(--manager); }
+    .user-role-badge.role-driver { background: rgba(245, 158, 11, 0.15); color: var(--driver); }
     .user-name { font-weight: 700; font-size: 14px; flex: 1; }
     .user-status {
       font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px;
     }
     .user-status.status-active { background: rgba(16, 185, 129, 0.12); color: var(--success); }
-    .user-status.status-blocked { background: rgba(239, 68, 68, 0.12); color: var(--error); }
     .user-meta { font-size: 11px; color: var(--text-secondary); }
     .user-actions { display: flex; gap: 6px; flex-shrink: 0; }
     .user-action-btn {
@@ -340,7 +340,6 @@
       justify-content: center; transition: all 0.2s ease;
     }
     .user-action-btn:hover { background: rgba(255, 255, 255, 0.08); color: var(--text-primary); }
-    .user-action-btn.btn-block:hover { background: rgba(239, 68, 68, 0.1); color: var(--error); }
     .user-action-btn.btn-delete:hover { background: rgba(239, 68, 68, 0.15); color: var(--error); }
     .loading-users {
       text-align: center; padding: 24px; color: var(--text-secondary); font-size: 13px;
@@ -573,6 +572,7 @@
               <label class="form-label">Роль</label>
               <select class="form-select" id="newUserRole">
                 <option value="Менеджер">Менеджер</option>
+                <option value="Водій">Водій</option>
                 <option value="Власник">Власник</option>
               </select>
             </div>
@@ -1056,19 +1056,13 @@
         }
         let html = '';
         result.users.forEach(u => {
-          const roleClass = u.role === 'Власник' ? 'role-owner' : 'role-manager';
-          const statusClass = u.status === 'Заблокований' ? 'status-blocked' : 'status-active';
-          const statusText = u.status === 'Заблокований' ? 'Заблоковано' : 'Активний';
+          const roleClass = u.role === 'Власник' ? 'role-owner' : (u.role === 'Водій' ? 'role-driver' : 'role-manager');
           const isSelf = u.name.toLowerCase() === currentUser.name.toLowerCase();
           html += '<div class="user-row">';
           html += '<span class="user-role-badge ' + roleClass + '">' + u.role + '</span>';
           html += '<span class="user-name">' + u.name + (isSelf ? ' (ви)' : '') + '</span>';
-          html += '<span class="user-status ' + statusClass + '">' + statusText + '</span>';
           if (!isSelf) {
             html += '<div class="user-actions">';
-            html += '<button class="user-action-btn btn-block" title="' + (u.status === 'Заблокований' ? 'Розблокувати' : 'Заблокувати') + '" onclick="doToggleStatus(\'' + u.name.replace(/'/g, "\\'") + '\')">';
-            html += u.status === 'Заблокований' ? '🔓' : '🔒';
-            html += '</button>';
             html += '<button class="user-action-btn btn-delete" title="Видалити" onclick="confirmDelete(\'' + u.name.replace(/'/g, "\\'") + '\', \'' + u.role + '\')">';
             html += '🗑';
             html += '</button>';
@@ -1084,24 +1078,6 @@
         list.innerHTML = html;
       } catch (err) {
         list.innerHTML = '<div class="loading-users" style="color:var(--error);">Помилка зʼєднання</div>';
-      }
-    }
-    // ═══ БЛОКУВАННЯ ═══
-    async function doToggleStatus(targetName) {
-      try {
-        const result = await apiCall({
-          action: 'toggleStatus',
-          ownerEmail: currentUser.email,
-          ownerPassword: currentUser.password,
-          targetEmail: targetName
-        });
-        if (result.success) {
-          loadUsers();
-        } else {
-          alert(result.error);
-        }
-      } catch (err) {
-        alert('Помилка зʼєднання');
       }
     }
     // ═══ ВИДАЛЕННЯ ═══
