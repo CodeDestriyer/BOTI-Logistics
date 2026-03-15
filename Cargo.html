@@ -1824,22 +1824,6 @@
             </button>
         </div>
 
-        <!-- Статуси -->
-        <div class="bulk-group-header" onclick="toggleBulkGroup('status')">
-            <span>Статуси</span><span class="bulk-group-toggle" id="bulkToggleStatus">▼</span>
-        </div>
-        <div class="bulk-group-items" id="bulkGroupStatus">
-            <button class="bulk-sidebar-btn" onclick="bulkSetParcelStatus()">
-                <span class="btn-icon">📋</span> Статус посилки
-            </button>
-            <button class="bulk-sidebar-btn" onclick="bulkSetSmsNote()">
-                <span class="btn-icon">💬</span> Примітка СМС
-            </button>
-            <button class="bulk-sidebar-btn" onclick="bulkSetDateReceive()">
-                <span class="btn-icon">📅</span> Дата отримання
-            </button>
-        </div>
-
         <!-- Закриття -->
         <div class="bulk-group-header collapsed" onclick="toggleBulkGroup('close')">
             <span>Закриття</span><span class="bulk-group-toggle" id="bulkToggleClose">▼</span>
@@ -1851,7 +1835,7 @@
             <button class="bulk-sidebar-btn" onclick="bulkDelete()">
                 <span class="btn-icon">🗑️</span> Видалити
             </button>
-            <button class="bulk-sidebar-btn" onclick="bulkArchive()">
+            <button class="bulk-sidebar-btn" id="btnSidebarArchive" onclick="bulkArchive()">
                 <span class="btn-icon">📦</span> В архів
             </button>
             <button class="bulk-sidebar-btn" id="btnSidebarRestore" onclick="bulkRestore()" style="display:none;">
@@ -1882,9 +1866,6 @@
             <button class="bulk-btn optimize" onclick="bulkOptimize()">⚡ Опт</button>
             <button class="bulk-btn route" onclick="bulkMoveToRoute()">🚀 Маршрут</button>
             <button class="bulk-btn" onclick="openTagModal()" style="background:rgba(139,92,246,0.4);">🏷️ Тег</button>
-            <button class="bulk-btn" onclick="bulkSetParcelStatus()" style="background:var(--info);">📋 Статус</button>
-            <button class="bulk-btn" onclick="bulkSetSmsNote()" style="background:#7c3aed;">💬 СМС</button>
-            <button class="bulk-btn" onclick="bulkSetDateReceive()" style="background:var(--success);">📅 Дата</button>
             <button class="bulk-btn" onclick="bulkDelete()" style="background:rgba(220,53,69,0.4);">🗑️ Вид</button>
             <button class="bulk-btn archive" id="btnBulkArchive" onclick="bulkArchive()">📦 Архів</button>
             <button class="bulk-btn restore" id="btnBulkRestore" onclick="bulkRestore()" style="display:none;background:var(--success);">↩️</button>
@@ -2242,8 +2223,7 @@ let packages = [];
 const DEFAULT_VEHICLES = [
     {id:'v1', name:'Авто 1', routeSheet:'Маршрут 1', maxWeight:2000, maxPoints:60},
     {id:'v2', name:'Авто 2', routeSheet:'Маршрут 2', maxWeight:2000, maxPoints:60},
-    {id:'v3', name:'Авто 3', routeSheet:'Маршрут 3', maxWeight:2000, maxPoints:60},
-    {id:'v4', name:'Авто 4', routeSheet:'Маршрут 4', maxWeight:2000, maxPoints:60}
+    {id:'v3', name:'Авто 3', routeSheet:'Маршрут 3', maxWeight:2000, maxPoints:60}
 ];
 let vehicles = DEFAULT_VEHICLES.map(v => ({...v}));
 
@@ -3752,11 +3732,17 @@ function updateBulkBar() {
     const restoreBtn = document.getElementById('btnBulkRestore');
     if (restoreBtn) restoreBtn.style.display = canRestore ? 'inline-flex' : 'none';
 
+    // Ховаємо архів у маршрутах
+    const archiveBtn = document.getElementById('btnBulkArchive');
+    if (archiveBtn) archiveBtn.style.display = isRouteView ? 'none' : 'inline-flex';
+
     // PC Sidebar кнопки
     const sidebarRestore = document.getElementById('btnSidebarRestore');
     const sidebarDeleteForever = document.getElementById('btnSidebarDeleteForever');
+    const sidebarArchive = document.getElementById('btnSidebarArchive');
     if (sidebarRestore) sidebarRestore.style.display = canRestore ? 'flex' : 'none';
     if (sidebarDeleteForever) sidebarDeleteForever.style.display = canDeleteForever ? 'flex' : 'none';
+    if (sidebarArchive) sidebarArchive.style.display = isRouteView ? 'none' : 'flex';
 }
 
 function handleSearch() { filters.search = document.getElementById('searchInput').value; render(); }
@@ -4388,7 +4374,6 @@ function renderRoutePassengers() {
                 <button class="btn-card-action btn-map" onclick="event.stopPropagation();openMapModal('${uk}')">🗺️ Карта</button>
                 <button class="btn-card-action btn-edit" onclick="event.stopPropagation();editPackage('${uk}')">✏️ Редагувати</button>
                 <button class="btn-card-action" style="background:#fee2e2;color:#dc2626;" onclick="event.stopPropagation();routeRefusePackage('${uk}')">❌ Відмова</button>
-                <button class="btn-card-action" style="background:#e0e7ff;color:#4338ca;" onclick="event.stopPropagation();routeArchivePackage('${uk}')">📦 Архів</button>
                 <button class="btn-card-action btn-delete" onclick="event.stopPropagation();showRouteDeleteChoice('${uk}')">🗑️ Видалити</button>
             </div>
         </div>`;
