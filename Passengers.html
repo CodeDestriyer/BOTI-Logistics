@@ -727,7 +727,7 @@
         .route-stat-item.active.in-progress { background: #007bff; }
         .route-stat-item.active.completed { background: #28a745; }
         .route-stat-item.active.cancelled { background: #dc3545; }
-        .route-stat-item.active.not-notified { background: #f97316; }
+
         .route-stat-num { font-size: 18px; font-weight: 700; }
         .route-stat-label { font-size: 9px; white-space: nowrap; }
         
@@ -1845,9 +1845,6 @@
         <button class="bulk-sidebar-btn" onclick="openTagModal()" style="background:rgba(139,92,246,0.3);">
             <span class="btn-icon">🏷️</span> Протегувати
         </button>
-        <button class="bulk-sidebar-btn" id="btnSidebarNotify" onclick="bulkMarkNotified()" style="display:none;">
-            <span class="btn-icon">🔔</span> Сповіщено
-        </button>
         <div class="bulk-sidebar-divider"></div>
         <button class="bulk-sidebar-more-toggle" id="bulkMoreToggle" onclick="toggleBulkSecondary()">
             <span>Ще дії</span> <span class="toggle-arrow">▼</span>
@@ -1890,7 +1887,7 @@
             <button class="bulk-btn optimize" onclick="bulkOptimize()">⚡ Опт</button>
             <button class="bulk-btn route" onclick="bulkMoveToRoute()" style="background:rgba(249,115,22,0.4);">🚀 Маршрут</button>
             <button class="bulk-btn" onclick="openTagModal()" style="background:rgba(139,92,246,0.4);">🏷️ Тег</button>
-            <button class="bulk-btn notify" id="btnBulkNotify" onclick="bulkMarkNotified()" style="display:none;background:rgba(249,115,22,0.5);">🔔</button>
+            <button class="bulk-btn" onclick="bulkDelete()" style="background:rgba(220,53,69,0.4);">🗑️ Вид</button>
             <button class="bulk-btn archive" id="btnBulkArchive" onclick="bulkArchive()">📦 Архів</button>
             <button class="bulk-btn restore" id="btnBulkRestore" onclick="bulkRestore()" style="display:none;background:rgba(34,197,94,0.4);">↩️</button>
         </div>
@@ -3464,14 +3461,11 @@ function updateBulkBar() {
     
     // Mobile кнопки
     const restoreBtn = document.getElementById('btnBulkRestore');
-    const notifyBtn = document.getElementById('btnBulkNotify');
     const archiveBtn = document.getElementById('btnBulkArchive');
     if (restoreBtn) restoreBtn.style.display = (canRestore && !isRouteView) ? 'inline-flex' : 'none';
-    if (notifyBtn) notifyBtn.style.display = isRouteView ? 'inline-flex' : 'none';
     if (archiveBtn) archiveBtn.style.display = isRouteView ? 'none' : '';
     
     // PC Sidebar кнопки
-    const sidebarNotify = document.getElementById('btnSidebarNotify');
     const sidebarRestore = document.getElementById('btnSidebarRestore');
     const sidebarDeleteForever = document.getElementById('btnSidebarDeleteForever');
     const sidebarMoreToggle = document.getElementById('bulkMoreToggle');
@@ -3479,7 +3473,6 @@ function updateBulkBar() {
     const sidebarRefuse = document.getElementById('btnSidebarRefuse');
     const sidebarDelete = document.getElementById('btnSidebarDelete');
     const sidebarSecondary = document.getElementById('bulkSecondaryActions');
-    if (sidebarNotify) sidebarNotify.style.display = isRouteView ? 'flex' : 'none';
     if (sidebarRestore) sidebarRestore.style.display = (canRestore && !isRouteView) ? 'flex' : 'none';
     if (sidebarDeleteForever) sidebarDeleteForever.style.display = canDeleteForever ? 'flex' : 'none';
     // В маршрутах: ховаємо "Ще дії", Архівувати, Відмова, Відновити; показуємо тільки Видалити
@@ -3765,29 +3758,17 @@ function showRoute(sheetName) {
     // Знаходимо відповідне авто (якщо є)
     const v = vehicles.find(x => x.routeSheet === sheetName || x.name === sheetName);
 
-    // Завантажуємо дані з таблиці маршрутів + статус розсилки
-    Promise.all([
-        fetch(ROUTE_API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({
-                action: 'getRoutePassengers',
-                payload: { sheetName: sheetName, companyId: getCompanyId() }
-            })
-        }).then(r => r.json()),
-        fetch(ROUTE_API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'getMailingStatus', companyId: getCompanyId() })
-        }).then(r => r.json())
-    ])
-    .then(([routeData, mailingData]) => {
+    // Завантажуємо дані з таблиці маршрутів
+    fetch(ROUTE_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+            action: 'getRoutePassengers',
+            payload: { sheetName: sheetName, companyId: getCompanyId() }
+        })
+    }).then(r => r.json())
+    .then(routeData => {
         hideLoader();
-
-        // Зберігаємо mailingIds
-        if (mailingData.success) {
-            mailingIds = mailingData.mailingIds || [];
-        }
 
         if (routeData.success) {
             // Зберігаємо дані маршруту
@@ -3819,7 +3800,7 @@ function showRoute(sheetName) {
 // Завантажити всі маршрути
 async function loadAllRoutePassengers() {
     routePassengers = [];
-    routeStats = { total: 0, pending: 0, inProgress: 0, completed: 0, cancelled: 0, archived: 0, notified: 0, notNotified: 0 };
+    routeStats = { total: 0, pending: 0, inProgress: 0, completed: 0, cancelled: 0, archived: 0 };
     currentRouteVehicle = null;
     
     // Показуємо loader
@@ -3827,24 +3808,12 @@ async function loadAllRoutePassengers() {
     
     // Паралельно завантажуємо: статус розсилки + список маршрутів
     try {
-        const [mailingResponse, routesResponse] = await Promise.all([
-            fetch(ROUTE_API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'getMailingStatus', companyId: getCompanyId() })
-            }).then(r => r.json()).catch(() => ({ success: false })),
-            fetch(ROUTE_API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
-            }).then(r => r.json()).catch(() => ({ success: false }))
-        ]);
-        
-        // Зберігаємо mailingIds
-        if (mailingResponse.success) {
-            mailingIds = mailingResponse.mailingIds || [];
-        }
-        
+        const routesResponse = await fetch(ROUTE_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'getAvailableRoutes', companyId: getCompanyId() })
+        }).then(r => r.json()).catch(() => ({ success: false }));
+
         if (routesResponse.success && routesResponse.routes && routesResponse.routes.length > 0) {
             // Фільтруємо: тільки аркуші маршрутів (ігноруємо логи, розсилка тощо)
             const routes = routesResponse.routes.filter(r => isRouteSheet(r.name));
@@ -3946,10 +3915,9 @@ function hideLoader() {
 
 // Глобальні змінні для маршрутів
 let routePassengers = [];
-let routeStats = { total: 0, pending: 0, inProgress: 0, completed: 0, cancelled: 0, archived: 0, notified: 0, notNotified: 0 };
+let routeStats = { total: 0, pending: 0, inProgress: 0, completed: 0, cancelled: 0, archived: 0 };
 let currentRouteVehicle = null;
 let routeStatusFilter = 'all'; // Фільтр по статусу в маршруті
-let mailingIds = []; // ІД тих хто отримав розсилку
 
 // Рендер пасажирів маршруту в основному списку
 function renderRoutePassengers() {
@@ -3975,25 +3943,17 @@ function renderRoutePassengers() {
     
     // Фільтруємо по статусу
     let filteredPassengers = routePassengers.filter(p => p.status !== 'archived');
-    if (routeStatusFilter === 'not-notified') {
-        filteredPassengers = filteredPassengers.filter(p => !mailingIds.includes(String(p.id)));
-    } else if (routeStatusFilter === 'notified') {
-        filteredPassengers = filteredPassengers.filter(p => mailingIds.includes(String(p.id)));
-    } else if (routeStatusFilter !== 'all') {
+    if (routeStatusFilter !== 'all') {
         filteredPassengers = filteredPassengers.filter(p => p.driverStatus === routeStatusFilter);
     }
     
-    // Рахуємо сповіщення (без архівних)
+    // Рахуємо статистику (без архівних)
     const activeRoutePassengers = routePassengers.filter(p => p.status !== 'archived');
-    const notifiedCount = activeRoutePassengers.filter(p => mailingIds.includes(String(p.id))).length;
-    const notNotifiedCount = activeRoutePassengers.length - notifiedCount;
     routeStats.total = activeRoutePassengers.length;
     routeStats.pending = activeRoutePassengers.filter(p => !p.driverStatus || p.driverStatus === 'pending').length;
     routeStats.inProgress = activeRoutePassengers.filter(p => p.driverStatus === 'in-progress').length;
     routeStats.completed = activeRoutePassengers.filter(p => p.driverStatus === 'completed').length;
     routeStats.cancelled = activeRoutePassengers.filter(p => p.driverStatus === 'cancelled').length;
-    routeStats.notified = notifiedCount;
-    routeStats.notNotified = notNotifiedCount;
     
     let html = '';
     
@@ -4029,10 +3989,6 @@ function renderRoutePassengers() {
                     <div class="route-stat-num">${routeStats.cancelled}</div>
                     <div class="route-stat-label">❌ Відмова</div>
                 </div>
-                <div class="route-stat-item ${routeStatusFilter === 'not-notified' ? 'active not-notified' : ''}" onclick="filterRouteByStatus('not-notified')" style="${routeStatusFilter !== 'not-notified' ? 'color:#f97316;' : ''}">
-                    <div class="route-stat-num">${notNotifiedCount}</div>
-                    <div class="route-stat-label">🔔 Не спов.</div>
-                </div>
             </div>
             ${currentRouteVehicle ? `<div style="text-align:center;margin-top:10px;"><button onclick="showRoute('${(currentRouteVehicle.routeSheet || currentRouteVehicle.name).replace(/'/g, "\\'")}')" style="padding:8px 20px;border:none;border-radius:6px;background:var(--info);color:white;font-weight:600;cursor:pointer;font-size:12px;">🔄 Оновити</button></div>` : ''}
         </div>
@@ -4064,13 +4020,6 @@ function renderRoutePassengers() {
             statusBadge = '<span class="status-badge archived">📦 Архів</span>';
         }
         
-        // Перевіряємо чи сповіщений
-        const isNotified = mailingIds.includes(String(p.id));
-        const notifyBadge = isNotified 
-            ? '<span style="background:#f97316;color:white;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:600;">🔔 Сповіщено</span>' 
-            : '';
-        const notifyClass = isNotified ? 'is-notified' : '';
-        
         const veh = vehicles.find(v => v.id === p._vehicleId || v.routeSheet === p._vehicleName || v.name === p._vehicleName);
         const vehicleBadge = veh
             ? `<span class="card-vehicle-badge" style="cursor:default;">${veh.name}</span>`
@@ -4079,7 +4028,7 @@ function renderRoutePassengers() {
         const isSelected = selectedIds.has(p._uid);
         
         html += `
-            <div class="lead-card ${statusClass} ${notifyClass} ${isSelected ? 'selected' : ''}" data-uid="${p._uid}">
+            <div class="lead-card ${statusClass} ${isSelected ? 'selected' : ''}" data-uid="${p._uid}">
                 <div class="card-header" onclick="toggleRouteCardDetails('${p._uid}')">
                     <div class="card-checkbox-wrap">
                         <input type="checkbox" class="card-checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();toggleSelect('${p._uid}')">
@@ -4103,7 +4052,6 @@ function renderRoutePassengers() {
                         </div>
                         <div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                             ${statusBadge}
-                            ${notifyBadge}
                             ${hiddenCols.has('timing')?'':(p.timing ? `<span style="font-size:10px;color:#666;">⏰ ${p.timing}</span>` : '')}
                         </div>
                         ${hiddenCols.has('note')?'':(p.note ? `<div style="font-size:10px;color:#666;margin-top:4px;font-style:italic;">📝 ${p.note}</div>` : '')}
@@ -4603,79 +4551,6 @@ function bulkRestore() {
         }
         doRestoreRoute(2);
     }
-}
-
-// Відмітити як сповіщених
-function bulkMarkNotified() {
-    if (selectedIds.size === 0) return showToast('⚠️ Оберіть пасажирів');
-    
-    // Питаємо ім'я (поки немає системи логіну)
-    const userName = prompt('Введіть ваше ім\'я:');
-    if (!userName || !userName.trim()) {
-        return showToast('⚠️ Введіть ім\'я');
-    }
-    
-    // Збираємо записи для додавання
-    const records = [];
-    selectedIds.forEach(uid => {
-        // Шукаємо в routePassengers (бо ми в режимі маршруту)
-        const p = routePassengers.find(x => x._uid === uid);
-        if (p && p.id) {
-            // Перевіряємо чи вже не сповіщений
-            if (!mailingIds.includes(String(p.id))) {
-                records.push({
-                    date: p.date || new Date().toLocaleDateString('uk-UA'),
-                    id: p.id
-                });
-            }
-        }
-    });
-    
-    if (records.length === 0) {
-        return showToast('⚠️ Всі вибрані вже сповіщені');
-    }
-    
-    showLoader('Збереження...', '');
-    
-    fetch(ROUTE_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-            action: 'addMailingRecord',
-            companyId: getCompanyId(),
-            payload: {
-                records: records,
-                userName: userName.trim()
-            }
-        })
-    })
-    .then(r => r.text())
-    .then(text => {
-        hideLoader();
-        records.forEach(r => mailingIds.push(String(r.id)));
-        clearSelection();
-        renderRoutePassengers();
-        try {
-            const data = JSON.parse(text);
-            if (data.success) {
-                showToast(`🔔 Сповіщено: ${data.added}`);
-            } else {
-                console.warn('Mailing server error:', data.error);
-                showToast(`🔔 Сповіщено: ${records.length}`);
-            }
-        } catch(e) {
-            showToast(`🔔 Сповіщено: ${records.length}`);
-        }
-    })
-    .catch(err => {
-        hideLoader();
-        console.warn('Mailing fetch error:', err);
-        records.forEach(r => mailingIds.push(String(r.id)));
-        clearSelection();
-        renderRoutePassengers();
-        showToast(`🔔 Сповіщено: ${records.length}`);
-        setTimeout(() => silentSync(), 2000);
-    });
 }
 
 // BULK ACTIONS
